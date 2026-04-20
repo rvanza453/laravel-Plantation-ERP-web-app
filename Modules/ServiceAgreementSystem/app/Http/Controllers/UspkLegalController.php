@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Modules\ServiceAgreementSystem\Models\UspkApproval;
 use Modules\ServiceAgreementSystem\Models\UspkSubmission;
 
@@ -102,7 +103,7 @@ class UspkLegalController extends Controller
             ]);
         });
 
-        return redirect()->route('sas.uspk.show', $uspk)->with('success', 'Dokumen SPK final dari Legal berhasil diunggah.');
+        return redirect()->route('sas.uspk.show', $uspk)->with('success', 'Dokumen SPK final dari Legal berhasil diunggah. Tahap berikutnya: pengaju mengunggah SPK bertanda tangan untuk memulai proses QC.');
     }
 
     public function downloadFinal(UspkSubmission $uspk)
@@ -113,13 +114,26 @@ class UspkLegalController extends Controller
 
         $user = auth()->user();
         $isSubmitter = (int) $uspk->submitted_by === (int) $user->id;
-    $isLegal = $this->isLegalUser($user);
+        $isLegal = $this->isLegalUser($user);
 
         if (!$isSubmitter && !$isLegal) {
             abort(403, 'Anda tidak memiliki akses untuk mengunduh dokumen ini.');
         }
 
-        return Storage::disk('public')->download($uspk->legal_spk_document_path, basename($uspk->legal_spk_document_path));
+        $uspk->loadMissing('selectedTender.contractor');
+
+        $extension = strtolower(pathinfo((string) $uspk->legal_spk_document_path, PATHINFO_EXTENSION));
+        if ($extension === '') {
+            $extension = 'pdf';
+        }
+
+        $uspkNumberSlug = Str::slug((string) $uspk->uspk_number, '-');
+        $winnerName = (string) optional(optional($uspk->selectedTender)->contractor)->name;
+        $winnerSlug = $winnerName !== '' ? Str::slug($winnerName, '-') : 'kontraktor';
+        $uploadedDate = optional($uspk->legal_spk_uploaded_at)->format('Ymd') ?? now()->format('Ymd');
+        $downloadName = 'SPK-FINAL-' . strtoupper($uspkNumberSlug ?: 'USPK') . '-' . strtoupper($winnerSlug) . '-' . $uploadedDate . '.' . $extension;
+
+        return Storage::disk('public')->download($uspk->legal_spk_document_path, $downloadName);
     }
 
     public function returnToSelection(Request $request, UspkSubmission $uspk)
@@ -132,23 +146,32 @@ class UspkLegalController extends Controller
         ]);
 
         DB::transaction(function () use ($uspk, $validated) {
-            $maxLevel = (int) $uspk->approvals()->max('level');
-            $latestFinalApproval = $uspk->approvals()
-                ->where('level', $maxLevel)
-                ->orderByDesc('id')
+            $schema = $uspk->department?->approvalSchemas()
+                ->where('is_active', true)
+                ->with('steps')
                 ->first();
 
-            if (!$latestFinalApproval) {
-                throw new \RuntimeException('Tahap approval final tidak ditemukan.');
+            if (!$schema || $schema->steps->isEmpty()) {
+                throw new \RuntimeException('Skema approval tidak ditemukan atau tidak memiliki tahapan.');
             }
 
-            $uspk->approvals()->create([
-                'schema_id' => $latestFinalApproval->schema_id,
-                'level' => $maxLevel,
-                'status' => UspkApproval::STATUS_PENDING,
-                'user_id' => $latestFinalApproval->user_id,
-                'comment' => '[Rollback Legal] ' . $validated['comment'],
-            ]);
+            // Level 1-2 adalah approval site dan tetap dipertahankan.
+            // Rollback legal hanya mereset voting level 3 ke atas agar hasil vote lama tidak menumpuk.
+            $startLevelToReset = 3;
+            $uspk->approvals()->where('level', '>=', $startLevelToReset)->delete();
+
+            // Recreate approval rows untuk level 3 ke atas dengan status PENDING
+            foreach ($schema->steps as $step) {
+                if ((int) $step->level >= $startLevelToReset) {
+                    $uspk->approvals()->create([
+                        'schema_id' => $schema->id,
+                        'level' => $step->level,
+                        'status' => UspkApproval::STATUS_PENDING,
+                        'user_id' => $step->user_id,
+                        'comment' => '[Rollback Legal] ' . $validated['comment'],
+                    ]);
+                }
+            }
 
             $uspk->tenders()->update(['is_selected' => false]);
 
@@ -161,7 +184,7 @@ class UspkLegalController extends Controller
             ]);
         });
 
-        return redirect()->route('sas.uspk.show', $uspk)->with('success', 'USPK dikembalikan ke tahap pemilihan kontraktor oleh approver final.');
+        return redirect()->route('sas.uspk.show', $uspk)->with('success', 'USPK dikembalikan ke proses voting level 3. Approval site level tetap berlaku.');
     }
 
     protected function authorizeLegal(): void
@@ -182,7 +205,7 @@ class UspkLegalController extends Controller
 
         $sasRole = strtolower(trim((string) $user->moduleRole('sas')));
 
-        return $sasRole === 'legal' || $user->hasAnyRole(['Legal', 'Super Admin']);
+        return in_array($sasRole, ['legal', 'admin'], true) || $user->hasAnyRole(['Legal', 'Admin', 'Super Admin']);
     }
 
     protected function ensureLegalReviewState(UspkSubmission $uspk): void
@@ -191,11 +214,7 @@ class UspkLegalController extends Controller
             abort(422, 'USPK belum berstatus approved final.');
         }
 
-        // Backward compatibility: some approved records may not have winner flag set,
-        // even though final approver already voted a tender.
-        if (!$uspk->selectedTender()->exists()) {
-            $this->restoreWinnerFromApprovalHistory($uspk);
-        }
+        $this->restoreWinnerFromApprovalHistory($uspk);
 
         if (!$uspk->selectedTender()->exists()) {
             abort(422, 'Pemenang kontraktor belum ditentukan oleh approver final.');
@@ -217,6 +236,12 @@ class UspkLegalController extends Controller
 
         $winnerTender = $uspk->tenders()->whereKey($winnerTenderId)->first();
         if (!$winnerTender) {
+            return;
+        }
+
+        $currentSelectedId = $uspk->tenders()->where('is_selected', true)->value('id');
+
+        if ((int) $currentSelectedId === (int) $winnerTenderId) {
             return;
         }
 

@@ -2,6 +2,7 @@
 
 namespace Modules\ServiceAgreementSystem\Services;
 
+use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Modules\ServiceAgreementSystem\Models\UspkApprovalSchemaStep;
 use Modules\ServiceAgreementSystem\Models\UspkApproval;
@@ -15,8 +16,8 @@ class UspkApprovalService
      */
     public function approve(UspkSubmission $submission, int $userId, ?string $comment = null, ?int $selectedTenderId = null, array $voteData = []): UspkApproval
     {
-        $user = \App\Models\User::find($userId);
-        $isSuperAdmin = $user->hasRole('Super Admin');
+        $user = User::findOrFail($userId);
+        $canOverride = $this->canOverrideApproval($user);
 
         return $this->applyDecision(
             submission: $submission,
@@ -25,14 +26,14 @@ class UspkApprovalService
             comment: $comment,
             selectedTenderId: $selectedTenderId,
             voteData: $voteData,
-            isSuperAdmin: $isSuperAdmin
+            canOverride: $canOverride
         );
     }
 
     public function hold(UspkSubmission $submission, int $userId, ?string $comment = null, ?int $selectedTenderId = null, array $voteData = []): UspkApproval
     {
-        $user = \App\Models\User::find($userId);
-        $isSuperAdmin = $user->hasRole('Super Admin');
+        $user = User::findOrFail($userId);
+        $canOverride = $this->canOverrideApproval($user);
 
         return $this->applyDecision(
             submission: $submission,
@@ -41,7 +42,7 @@ class UspkApprovalService
             comment: $comment,
             selectedTenderId: $selectedTenderId,
             voteData: $voteData,
-            isSuperAdmin: $isSuperAdmin
+            canOverride: $canOverride
         );
     }
 
@@ -50,8 +51,8 @@ class UspkApprovalService
      */
     public function reject(UspkSubmission $submission, int $userId, ?string $comment = null, array $voteData = []): UspkApproval
     {
-        $user = \App\Models\User::find($userId);
-        $isSuperAdmin = $user->hasRole('Super Admin');
+        $user = User::findOrFail($userId);
+        $canOverride = $this->canOverrideApproval($user);
 
         return $this->applyDecision(
             submission: $submission,
@@ -60,7 +61,7 @@ class UspkApprovalService
             comment: $comment,
             selectedTenderId: $voteData['vote_tender_id'] ?? null,
             voteData: $voteData,
-            isSuperAdmin: $isSuperAdmin
+            canOverride: $canOverride
         );
     }
 
@@ -71,7 +72,7 @@ class UspkApprovalService
         ?string $comment,
         ?int $selectedTenderId,
         array $voteData,
-        bool $isSuperAdmin
+        bool $canOverride
     ): UspkApproval {
         $approval = $submission->approvals()
             ->whereIn('status', [UspkApproval::STATUS_PENDING, UspkApproval::STATUS_ON_HOLD])
@@ -95,22 +96,34 @@ class UspkApprovalService
             ->where('level', $approval->level)
             ->first();
 
-        // Super Admin bisa override siapa saja
-        if (!$isSuperAdmin && (!$step || $step->user_id !== $userId)) {
+        // Admin/Super Admin bisa override siapa saja.
+        if (!$canOverride && (!$step || $step->user_id !== $userId)) {
             throw new \Exception('Anda tidak memiliki otorisasi untuk melakukan proses pada tahap ini.');
+        }
+
+        $decisionUserId = $userId;
+        $finalComment = $comment;
+
+        if ($canOverride && $step && $step->user_id) {
+            $decisionUserId = (int) $step->user_id;
+
+            if ($decisionUserId !== $userId) {
+                $actorName = auth()->user()?->name ?? 'Admin';
+                $finalComment = trim('[Diproses oleh admin: ' . $actorName . '] ' . ($comment ?? ''));
+            }
         }
 
         $this->storeVoteData($approval, $voteData);
 
         $approval->update([
             'status' => $decisionStatus,
-            'user_id' => $userId,
-            'comment' => $comment,
+            'user_id' => $decisionUserId,
+            'comment' => $finalComment,
             'approved_at' => now(),
         ]);
 
         if (in_array($decisionStatus, [UspkApproval::STATUS_APPROVED, UspkApproval::STATUS_ON_HOLD], true) && $selectedTenderId) {
-            $this->persistTenderNegotiation($submission, $selectedTenderId, $voteData, $userId, $approval->level);
+            $this->persistTenderNegotiation($submission, $selectedTenderId, $voteData, $decisionUserId, $approval->level);
         }
 
         if ($decisionStatus === UspkApproval::STATUS_REJECTED) {
@@ -135,7 +148,7 @@ class UspkApprovalService
                     Log::info('Tender vote recorded during USPK approval', [
                         'uspk_id' => $submission->id,
                         'tender_id' => $selectedTenderId,
-                        'approver_id' => $userId,
+                        'approver_id' => $decisionUserId,
                         'level' => $approval->level,
                     ]);
                 }
@@ -144,12 +157,20 @@ class UspkApprovalService
 
         Log::info('USPK approval action stored', [
             'uspk_id' => $submission->id,
-            'approver_id' => $userId,
+            'approver_id' => $decisionUserId,
+            'action_by_user_id' => $userId,
             'level' => $approval->level,
             'status' => $decisionStatus,
         ]);
 
         return $approval;
+    }
+
+    protected function canOverrideApproval(User $user): bool
+    {
+        $sasRole = strtolower(trim((string) $user->moduleRole('sas')));
+
+        return $sasRole === 'admin' || $user->hasAnyRole(['Admin', 'Super Admin']);
     }
 
     protected function storeVoteData(UspkApproval $approval, array $voteData): void

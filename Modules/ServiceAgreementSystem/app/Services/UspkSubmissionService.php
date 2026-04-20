@@ -4,6 +4,7 @@ namespace Modules\ServiceAgreementSystem\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Modules\ServiceAgreementSystem\Models\UspkBlockProgress;
 use Modules\ServiceAgreementSystem\Models\UspkSubmission;
 use Modules\ServiceAgreementSystem\Models\UspkTender;
 use Modules\ServiceAgreementSystem\Models\Site;
@@ -25,6 +26,39 @@ class UspkSubmissionService
         return $this->repository->findById($id);
     }
 
+    public function reconcileWinnerFromFinalApproval(UspkSubmission $submission): void
+    {
+        $maxApprovedLevel = (int) $submission->approvals()
+            ->where('status', 'approved')
+            ->max('level');
+
+        if ($maxApprovedLevel <= 0) {
+            return;
+        }
+
+        $winnerTenderId = $submission->approvals()
+            ->where('status', 'approved')
+            ->where('level', $maxApprovedLevel)
+            ->whereNotNull('vote_tender_id')
+            ->orderByDesc('id')
+            ->value('vote_tender_id');
+
+        if (!$winnerTenderId) {
+            return;
+        }
+
+        $currentSelectedId = $submission->tenders()->where('is_selected', true)->value('id');
+
+        if ((int) $currentSelectedId === (int) $winnerTenderId) {
+            return;
+        }
+
+        DB::transaction(function () use ($submission, $winnerTenderId) {
+            $submission->tenders()->update(['is_selected' => false]);
+            $submission->tenders()->whereKey($winnerTenderId)->update(['is_selected' => true]);
+        });
+    }
+
     /**
      * Buat USPK baru sebagai draft
      */
@@ -37,6 +71,7 @@ class UspkSubmissionService
             $data['submitted_by'] = auth()->id();
 
             $submission = $this->repository->create($data);
+            $this->syncBlockProgressRows($submission, $data['block_ids'] ?? []);
 
             // Simpan tender pembanding
             foreach ($tenders as $tender) {
@@ -59,6 +94,7 @@ class UspkSubmissionService
         return DB::transaction(function () use ($submission, $data, $tenders) {
             $data = $this->normalizeBlockData($data);
             $this->repository->update($submission, $data);
+            $this->syncBlockProgressRows($submission, $data['block_ids'] ?? []);
 
             // Hapus semua tender lama dan buat ulang
             $submission->tenders()->delete();
@@ -183,6 +219,40 @@ class UspkSubmissionService
             $data['block_id'] = (int) $blockIds[0];
         }
 
+        $data['block_ids'] = array_map('intval', $blockIds);
+
         return $data;
+    }
+
+    protected function syncBlockProgressRows(UspkSubmission $submission, array $blockIds): void
+    {
+        $normalizedBlockIds = collect($blockIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($normalizedBlockIds->isEmpty()) {
+            $submission->blockProgresses()->delete();
+            return;
+        }
+
+        $submission->blockProgresses()
+            ->whereNotIn('block_id', $normalizedBlockIds->all())
+            ->delete();
+
+        $existingBlockIds = $submission->blockProgresses()
+            ->whereIn('block_id', $normalizedBlockIds->all())
+            ->pluck('block_id')
+            ->map(fn ($id) => (int) $id);
+
+        $missingBlockIds = $normalizedBlockIds->diff($existingBlockIds);
+
+        foreach ($missingBlockIds as $blockId) {
+            $submission->blockProgresses()->create([
+                'block_id' => $blockId,
+                'status' => UspkBlockProgress::STATUS_PENDING,
+            ]);
+        }
     }
 }

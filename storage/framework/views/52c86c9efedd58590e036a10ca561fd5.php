@@ -10,10 +10,127 @@
 <?php $component->withAttributes([]); ?>
     <?php
         $sasRole = strtolower(trim((string) auth()->user()?->moduleRole('sas')));
-        $isLegalRole = $sasRole === 'legal' || auth()->user()?->hasAnyRole(['Legal', 'Super Admin']);
+        $isSasAdmin = $sasRole === 'admin' || auth()->user()?->hasAnyRole(['Admin', 'Super Admin']);
+        $isLegalRole = in_array($sasRole, ['legal', 'admin'], true) || auth()->user()?->hasAnyRole(['Legal', 'Admin', 'Super Admin']);
+        $isQcCoordinator = in_array($sasRole, ['qc', 'admin'], true) || auth()->user()?->hasAnyRole(['Admin', 'Super Admin']);
         $isSubmitter = (int) ($uspk->submitted_by ?? 0) === (int) auth()->id();
-        $canDownloadFinalSpk = $uspk->hasFinalSpkDocument() && ($isSubmitter || $isLegalRole);
+        $canDownloadFinalSpk = $uspk->hasFinalSpkDocument() && ($isSubmitter || $isLegalRole || $isSasAdmin);
         $canProcessLegal = $isLegalRole && $uspk->status === \Modules\ServiceAgreementSystem\Models\UspkSubmission::STATUS_APPROVED && !$uspk->hasFinalSpkDocument();
+        $canUploadSignedSpk = ($isSubmitter || $isSasAdmin)
+            && $uspk->status === \Modules\ServiceAgreementSystem\Models\UspkSubmission::STATUS_APPROVED
+            && $uspk->hasFinalSpkDocument();
+
+        $qcStatus = (string) ($uspk->qc_status ?? '');
+        $qcStatusLabels = [
+            \Modules\ServiceAgreementSystem\Models\UspkSubmission::QC_STATUS_PENDING_ASSIGNMENT => 'Menunggu Penugasan Verifier',
+            \Modules\ServiceAgreementSystem\Models\UspkSubmission::QC_STATUS_ASSIGNED => 'Menunggu Laporan Pekerjaan Selesai',
+            \Modules\ServiceAgreementSystem\Models\UspkSubmission::QC_STATUS_IN_VERIFICATION => 'Verifikasi QC Berjalan',
+            \Modules\ServiceAgreementSystem\Models\UspkSubmission::QC_STATUS_VERIFIED => 'Terverifikasi QC',
+            \Modules\ServiceAgreementSystem\Models\UspkSubmission::QC_STATUS_REVISION_REQUIRED => 'Perlu Revisi Pekerjaan',
+        ];
+        $qcHistoryActionLabels = [
+            'submitter_signed_spk_uploaded' => 'Upload SPK TTD Pengaju',
+            'verifier_assigned' => 'Assign Verifier',
+            'verifier_assignment_saved' => 'Simpan Penugasan Verifier',
+            'work_reported_completed' => 'Lapor Pekerjaan Selesai',
+            'verification_cycle_reset' => 'Reset Siklus Verifikasi',
+            'verifier_decision_recorded' => 'Keputusan Verifier',
+            'submission_marked_revision_required' => 'Status Jadi Butuh Revisi',
+            'submission_marked_verified' => 'Status Jadi Terverifikasi',
+            'block_progress_updated' => 'Update Progres Blok',
+        ];
+        $importantQcHistoryLogs = $uspk->qcVerificationLogs
+            ->filter(function ($log) {
+                // Sembunyikan log granular lama yang terlalu detail/noise.
+                if ((string) $log->action === 'verifier_assigned') {
+                    return false;
+                }
+
+                if ((string) $log->action === 'verification_cycle_reset' && (string) $log->status_before === (string) $log->status_after) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->values();
+
+        $qcAssignmentBadgeClass = $uspk->qcVerifications->isNotEmpty() ? 'badge-approved' : 'badge-pending_assignment';
+        $qcAssignmentBadgeText = $uspk->qcVerifications->isNotEmpty()
+            ? 'Verifier Sudah Ditugaskan'
+            : 'Menunggu Penugasan Verifier';
+        $qcReportBadgeClass = $uspk->work_reported_completed_at ? 'badge-approved' : 'badge-pending_assignment';
+        $qcReportBadgeText = $uspk->work_reported_completed_at
+            ? 'Pekerjaan Sudah Dilaporkan Selesai'
+            : 'Menunggu Laporan Pekerjaan Selesai';
+
+        $currentUserQcVerification = $uspk->qcVerifications->firstWhere('user_id', auth()->id());
+        $canAssignQcVerifiers = $isQcCoordinator && $uspk->hasSubmitterSignedSpkDocument();
+        $canReportWorkCompleted = ($isSubmitter || $isSasAdmin)
+            && $uspk->hasSubmitterSignedSpkDocument()
+            && !$uspk->work_reported_completed_at;
+        $canVerifyQc = $currentUserQcVerification
+            && $qcStatus === \Modules\ServiceAgreementSystem\Models\UspkSubmission::QC_STATUS_IN_VERIFICATION;
+
+        $uspkBlocks = $uspk->blocks;
+        $blockProgressById = $uspk->blockProgresses->keyBy(fn ($progress) => (int) $progress->block_id);
+        $totalBlocks = $uspkBlocks->count();
+        $completedBlocks = $uspkBlocks->filter(function ($block) use ($blockProgressById) {
+            return optional($blockProgressById->get((int) $block->id))->status
+                === \Modules\ServiceAgreementSystem\Models\UspkBlockProgress::STATUS_COMPLETED;
+        })->count();
+        $blockProgressPercent = $totalBlocks > 0 ? (int) round(($completedBlocks / $totalBlocks) * 100) : 0;
+        $today = now()->startOfDay();
+        $overdueBlocks = $uspkBlocks->filter(function ($block) use ($blockProgressById, $today) {
+            $progress = $blockProgressById->get((int) $block->id);
+            if (!$progress || !$progress->deadline_at) {
+                return false;
+            }
+
+            $isCompleted = (string) $progress->status === \Modules\ServiceAgreementSystem\Models\UspkBlockProgress::STATUS_COMPLETED;
+
+            return !$isCompleted && $progress->deadline_at->lt($today);
+        })->count();
+        $dueSoonBlocks = $uspkBlocks->filter(function ($block) use ($blockProgressById, $today) {
+            $progress = $blockProgressById->get((int) $block->id);
+            if (!$progress || !$progress->deadline_at) {
+                return false;
+            }
+
+            $isCompleted = (string) $progress->status === \Modules\ServiceAgreementSystem\Models\UspkBlockProgress::STATUS_COMPLETED;
+
+            return !$isCompleted
+                && $progress->deadline_at->gte($today)
+                && $progress->deadline_at->lte($today->copy()->addDays(3));
+        })->count();
+        $canManageBlockProgress = ($isSubmitter || $isSasAdmin || $isQcCoordinator)
+            && $uspk->hasSubmitterSignedSpkDocument()
+            && $totalBlocks > 0;
+
+        $assignableQcUsers = $canAssignQcVerifiers
+            ? \App\Models\User::query()
+                ->whereHas('moduleRoles', function ($query) {
+                    $query->where('module_key', 'sas');
+                })
+                ->orderBy('name')
+                ->get(['id', 'name', 'position'])
+            : collect();
+
+        $approvals = $uspk->approvals;
+        $hasApprovals = $approvals->count() > 0;
+        $maxApprovalLevel = (int) $approvals->max('level');
+        $finalLevelApproval = $approvals->firstWhere('level', $maxApprovalLevel);
+        $hasPendingOrHold = $approvals->contains(fn ($approval) => in_array($approval->status, ['pending', 'on_hold'], true));
+        $allApproversFinishedVoting = $hasApprovals && !$hasPendingOrHold;
+        $isFinalLevelFinalized = $finalLevelApproval && in_array($finalLevelApproval->status, ['approved', 'rejected'], true);
+        $isVotingFinalized = $uspk->status === \Modules\ServiceAgreementSystem\Models\UspkSubmission::STATUS_APPROVED || $allApproversFinishedVoting || $isFinalLevelFinalized;
+
+        $winnerFromFinalVote = $approvals
+            ->where('status', 'approved')
+            ->whereNotNull('vote_tender_id')
+            ->sortByDesc('level')
+            ->first();
+        $winnerTender = $winnerFromFinalVote?->voteTender ?: $uspk->tenders->firstWhere('is_selected', true);
+        $winnerTenderId = (int) ($winnerTender->id ?? 0);
     ?>
 
     <?php $__env->startPush('actions'); ?>
@@ -109,6 +226,50 @@
         </div>
     </div>
 
+    <div class="card mb-4 modern-card decision-summary-card <?php echo e($isVotingFinalized ? 'decision-summary-card--final' : 'decision-summary-card--progress'); ?>">
+        <div class="card-body" style="padding: 18px 24px;">
+            <?php if($isVotingFinalized && $uspk->status !== \Modules\ServiceAgreementSystem\Models\UspkSubmission::STATUS_REJECTED): ?>
+                <div class="decision-summary-title">
+                    <i class="fas fa-trophy"></i>
+                    Keputusan Final Sudah Ditetapkan
+                </div>
+                <?php if($winnerTender): ?>
+                    <div class="decision-summary-grid mt-2">
+                        <div>
+                            <div class="decision-label">Kontraktor Pemenang</div>
+                            <div class="decision-value"><?php echo e($winnerTender->contractor->name ?? '-'); ?></div>
+                            <div class="decision-subvalue"><?php echo e($winnerTender->contractor->company_name ?? '-'); ?></div>
+                        </div>
+                        <div>
+                            <div class="decision-label">Nilai Nego Final</div>
+                            <div class="decision-value">Rp <?php echo e(number_format((float) $winnerTender->tender_value, 0, ',', '.')); ?></div>
+                        </div>
+                        <div>
+                            <div class="decision-label">Durasi Final</div>
+                            <div class="decision-value"><?php echo e($winnerTender->tender_duration ? $winnerTender->tender_duration . ' hari' : '-'); ?></div>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <div class="decision-summary-note mt-2">Voting sudah selesai, tetapi pemenang belum terdeteksi otomatis. Mohon cek riwayat approval.</div>
+                <?php endif; ?>
+            <?php elseif($uspk->status === \Modules\ServiceAgreementSystem\Models\UspkSubmission::STATUS_REJECTED): ?>
+                <div class="decision-summary-title">
+                    <i class="fas fa-times-circle"></i>
+                    Pengajuan Ditolak
+                </div>
+                <div class="decision-summary-note mt-2">USPK ini berstatus ditolak, sehingga belum ada kontraktor pemenang final.</div>
+            <?php else: ?>
+                <div class="decision-summary-title">
+                    <i class="fas fa-hourglass-half"></i>
+                    Proses Voting Masih Berjalan
+                </div>
+                <div class="decision-summary-note mt-2">
+                    Keputusan final belum ditetapkan. Pemenang akhir akan muncul otomatis setelah approver level terakhir finalize.
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
     
     <div class="card mb-4 modern-card">
         <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid rgba(0,0,0,0.05);">
@@ -120,15 +281,21 @@
             <?php if($uspk->tenders->count() > 0): ?>
                 <div class="tender-scroll-container">
                     <?php $__currentLoopData = $uspk->tenders; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $tender): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php
+                            $isFinalWinnerCard = $isVotingFinalized && $winnerTenderId > 0 && (int) $tender->id === $winnerTenderId && $uspk->status !== \Modules\ServiceAgreementSystem\Models\UspkSubmission::STATUS_REJECTED;
+                            $isInitiallySelected = $isFinalWinnerCard || (!$isVotingFinalized && ($tender->is_selected || $index === 0));
+                        ?>
                         <div class="tender-wrapper">
                             
-                            <label class="tender-card" data-tender-card data-tender-id="<?php echo e($tender->id); ?>">
-                                <input type="radio" name="selected_tender_id" value="<?php echo e($tender->id); ?>" class="tender-radio" style="position: absolute; opacity: 0; pointer-events: none;">
+                            <label class="tender-card <?php echo e($isFinalWinnerCard ? 'tender-card--winner' : ''); ?>" data-tender-card data-tender-id="<?php echo e($tender->id); ?>">
+                                <input type="radio" name="selected_tender_id" value="<?php echo e($tender->id); ?>" class="tender-radio" style="position: absolute; opacity: 0; pointer-events: none;" <?php echo e($isInitiallySelected ? 'checked' : ''); ?>>
                                 
                                 <div class="tender-header">
                                     <div>
                                         <div class="tender-subtitle">
-                                            <?php if($tender->is_selected): ?>
+                                            <?php if($isFinalWinnerCard): ?>
+                                                <i class="fas fa-trophy"></i> PEMENANG FINAL
+                                            <?php elseif($tender->is_selected): ?>
                                                 <i class="fas fa-bookmark"></i> Rekomendasi Pengaju
                                             <?php else: ?>
                                                 Kandidat
@@ -245,6 +412,9 @@
                             <?php if($uspk->legal_spk_notes): ?>
                                 <div class="mt-2"><strong>Catatan Legal:</strong> <?php echo e($uspk->legal_spk_notes); ?></div>
                             <?php endif; ?>
+                            <?php if(!$uspk->hasSubmitterSignedSpkDocument()): ?>
+                                <div class="mt-2"><strong>Tahap berikutnya:</strong> Pengaju perlu upload ulang SPK yang sudah ditandatangani agar USPK masuk ke proses QC.</div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -303,6 +473,308 @@
     </div>
     <?php endif; ?>
 
+    <?php if($uspk->hasFinalSpkDocument() || $uspk->hasSubmitterSignedSpkDocument() || $qcStatus !== ''): ?>
+    <div class="card mb-4 modern-card">
+        <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid rgba(0,0,0,0.05);">
+            <div class="card-title" style="font-size: 16px; font-weight: 700;">
+                <i class="fas fa-clipboard-check" style="color: var(--info); margin-right: 8px;"></i> Proses QC USPK
+            </div>
+        </div>
+        <div class="card-body" style="padding: 24px;">
+            <?php if($uspk->hasSubmitterSignedSpkDocument()): ?>
+                <div class="alert-card mb-3">
+                    <div class="card-body">
+                        <i class="fas fa-file-signature info-icon" style="color: var(--success);"></i>
+                        <div class="info-text">
+                            SPK bertanda tangan sudah diunggah oleh <strong><?php echo e($uspk->submitterSignedUploader->name ?? 'Pengaju'); ?></strong>
+                            <?php if($uspk->submitter_signed_spk_uploaded_at): ?>
+                                pada <strong><?php echo e($uspk->submitter_signed_spk_uploaded_at->format('d M Y H:i')); ?></strong>
+                            <?php endif; ?>.
+                            <div class="mt-2">
+                                <a href="<?php echo e(asset('storage/' . $uspk->submitter_signed_spk_document_path)); ?>" target="_blank" class="attachment-btn">
+                                    <i class="fas fa-download"></i> Lihat SPK TTD Pengaju
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <div class="qc-split-grid">
+                <details class="qc-collapsible" open>
+                    <summary class="qc-collapsible-summary">
+                        <span class="badge <?php echo e($qcAssignmentBadgeClass); ?>"><?php echo e($qcAssignmentBadgeText); ?></span>
+                        <span class="qc-summary-text">Penugasan verifier bisa dikerjakan tanpa menunggu laporan selesai.</span>
+                    </summary>
+                    <div class="qc-collapsible-body">
+                        <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <?php if($uspk->qcAssigner): ?>
+                                <span style="font-size: 12px; color: var(--text-muted);">Ditugaskan oleh <?php echo e($uspk->qcAssigner->name); ?><?php echo e($uspk->qc_assigned_at ? ' (' . $uspk->qc_assigned_at->format('d M Y H:i') . ')' : ''); ?></span>
+                            <?php else: ?>
+                                <span style="font-size: 12px; color: var(--text-muted);">Belum ada verifier yang ditetapkan.</span>
+                            <?php endif; ?>
+                        </div>
+
+                        <?php if($canAssignQcVerifiers): ?>
+                            <div class="card" style="border: 1px solid var(--border-color); border-radius: 12px;">
+                                <div class="card-body" style="padding: 16px;">
+                                    <h4 style="margin: 0 0 10px; font-size: 14px; font-weight: 700;">Penugasan Verifier QC</h4>
+                                    <form action="<?php echo e(route('sas.uspk-qc.assign-verifiers', $uspk)); ?>" method="POST">
+                                        <?php echo csrf_field(); ?>
+                                        <div class="form-group mb-3">
+                                            <label class="input-label">Pilih User Verifier (bisa lebih dari satu)</label>
+                                            <select name="verifier_ids[]" class="form-control" multiple required style="min-height: 140px;">
+                                                <?php $__currentLoopData = $assignableQcUsers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $qcUser): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                    <option value="<?php echo e($qcUser->id); ?>" <?php echo e($uspk->qcVerifications->contains('user_id', $qcUser->id) ? 'selected' : ''); ?>>
+                                                        <?php echo e($qcUser->name); ?><?php echo e($qcUser->position ? ' - ' . $qcUser->position : ''); ?>
+
+                                                    </option>
+                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                            </select>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary action-btn">
+                                            <i class="fas fa-user-check"></i> Simpan Penugasan Verifier
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if($uspk->qcVerifications->isNotEmpty()): ?>
+                            <div class="card" style="border: 1px solid var(--border-color); border-radius: 12px; margin-top: 12px;">
+                                <div class="card-body" style="padding: 16px;">
+                                    <h4 style="margin: 0 0 10px; font-size: 14px; font-weight: 700;">Daftar Verifier QC</h4>
+                                    <div class="table-wrapper">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Verifier</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php $__currentLoopData = $uspk->qcVerifications; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $verification): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                    <tr>
+                                                        <td><?php echo e($verification->verifier->name ?? '-'); ?></td>
+                                                        <td><span class="badge badge-<?php echo e($verification->status); ?>"><?php echo e(ucfirst($verification->status)); ?></span></td>
+                                                    </tr>
+                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </details>
+
+                <details class="qc-collapsible" open>
+                    <summary class="qc-collapsible-summary">
+                        <span class="badge <?php echo e($qcReportBadgeClass); ?>"><?php echo e($qcReportBadgeText); ?></span>
+                        <span class="qc-summary-text">Laporan pekerjaan selesai bisa dibuat sebelum atau sesudah verifier ditetapkan.</span>
+                    </summary>
+                    <div class="qc-collapsible-body">
+                        <?php if($uspk->work_reported_completed_at): ?>
+                            <div style="margin-bottom: 12px; color: var(--text-muted); font-size: 12px;">
+                                Dilaporkan selesai pada <strong><?php echo e($uspk->work_reported_completed_at->format('d M Y H:i')); ?></strong>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if($totalBlocks > 0): ?>
+                            <div class="card" style="border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 12px;">
+                                <div class="card-body" style="padding: 16px;">
+                                    <h4 style="margin: 0 0 10px; font-size: 14px; font-weight: 700;">Rekap Progress Blok SPK</h4>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                                        <span class="badge" style="background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe;">
+                                            Progress <?php echo e($completedBlocks); ?>/<?php echo e($totalBlocks); ?> (<?php echo e($blockProgressPercent); ?>%)
+                                        </span>
+                                        <span class="badge" style="background: <?php echo e($overdueBlocks > 0 ? '#fee2e2' : '#ecfeff'); ?>; color: <?php echo e($overdueBlocks > 0 ? '#b91c1c' : '#0f766e'); ?>; border: 1px solid <?php echo e($overdueBlocks > 0 ? '#fecaca' : '#99f6e4'); ?>;">
+                                            Overdue: <?php echo e($overdueBlocks); ?> blok
+                                        </span>
+                                        <span class="badge" style="background: <?php echo e($dueSoonBlocks > 0 ? '#fef3c7' : '#ecfeff'); ?>; color: <?php echo e($dueSoonBlocks > 0 ? '#b45309' : '#0f766e'); ?>; border: 1px solid <?php echo e($dueSoonBlocks > 0 ? '#fde68a' : '#99f6e4'); ?>;">
+                                            Deadline ≤ 3 hari: <?php echo e($dueSoonBlocks); ?> blok
+                                        </span>
+                                    </div>
+
+                                    <div class="block-progress-bar" aria-label="Persentase progress blok">
+                                        <div class="block-progress-bar-fill" style="width: <?php echo e($blockProgressPercent); ?>%;"></div>
+                                    </div>
+
+                                    <?php if($canManageBlockProgress): ?>
+                                        <form action="<?php echo e(route('sas.uspk-qc.block-progress', $uspk)); ?>" method="POST" style="margin-top: 12px;">
+                                            <?php echo csrf_field(); ?>
+                                            <div class="table-wrapper">
+                                                <table>
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Blok</th>
+                                                            <th>Deadline</th>
+                                                            <th>Selesai</th>
+                                                            <th>Tgl Selesai</th>
+                                                            <th>Updated By</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <?php $__currentLoopData = $uspkBlocks; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $block): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                            <?php
+                                                                $progress = $blockProgressById->get((int) $block->id);
+                                                                $isCompleted = (string) optional($progress)->status === \Modules\ServiceAgreementSystem\Models\UspkBlockProgress::STATUS_COMPLETED;
+                                                                $deadlineDate = optional(optional($progress)->deadline_at)->format('Y-m-d');
+                                                            ?>
+                                                            <tr>
+                                                                <td>
+                                                                    <input type="hidden" name="block_ids[]" value="<?php echo e($block->id); ?>">
+                                                                    <strong><?php echo e($block->name); ?></strong>
+                                                                    <?php if($block->code): ?>
+                                                                        <div style="font-size: 11px; color: var(--text-muted);"><?php echo e($block->code); ?></div>
+                                                                    <?php endif; ?>
+                                                                </td>
+                                                                <td>
+                                                                    <input type="date" name="deadline_at[<?php echo e($block->id); ?>]" value="<?php echo e($deadlineDate); ?>" class="form-control" style="min-width: 150px;">
+                                                                </td>
+                                                                <td>
+                                                                    <label style="display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 600;">
+                                                                        <input type="checkbox" name="completed_blocks[]" value="<?php echo e($block->id); ?>" <?php echo e($isCompleted ? 'checked' : ''); ?>>
+                                                                        Selesai
+                                                                    </label>
+                                                                </td>
+                                                                <td><?php echo e(optional(optional($progress)->completed_at)->format('d M Y H:i') ?? '-'); ?></td>
+                                                                <td><?php echo e(optional(optional($progress)->completedBy)->name ?? '-'); ?></td>
+                                                            </tr>
+                                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <p class="text-muted" style="font-size: 12px; margin: 10px 0 0;">Deadline per blok ini disiapkan sebagai dasar pengingat otomatis saat fitur notifikasi diaktifkan.</p>
+                                            <button type="submit" class="btn btn-primary action-btn" style="margin-top: 10px;">
+                                                <i class="fas fa-save"></i> Simpan Progress Blok
+                                            </button>
+                                        </form>
+                                    <?php else: ?>
+                                        <div class="table-wrapper" style="margin-top: 12px;">
+                                            <table>
+                                                <thead>
+                                                    <tr>
+                                                        <th>Blok</th>
+                                                        <th>Status</th>
+                                                        <th>Deadline</th>
+                                                        <th>Tgl Selesai</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <?php $__currentLoopData = $uspkBlocks; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $block): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                        <?php
+                                                            $progress = $blockProgressById->get((int) $block->id);
+                                                            $isCompleted = (string) optional($progress)->status === \Modules\ServiceAgreementSystem\Models\UspkBlockProgress::STATUS_COMPLETED;
+                                                        ?>
+                                                        <tr>
+                                                            <td><?php echo e($block->name); ?></td>
+                                                            <td>
+                                                                <span class="badge <?php echo e($isCompleted ? 'badge-approved' : 'badge-pending_assignment'); ?>">
+                                                                    <?php echo e($isCompleted ? 'Selesai' : 'Belum Selesai'); ?>
+
+                                                                </span>
+                                                            </td>
+                                                            <td><?php echo e(optional(optional($progress)->deadline_at)->format('d M Y') ?? '-'); ?></td>
+                                                            <td><?php echo e(optional(optional($progress)->completed_at)->format('d M Y H:i') ?? '-'); ?></td>
+                                                        </tr>
+                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if($importantQcHistoryLogs->isNotEmpty()): ?>
+                            <div class="card" style="border: 1px solid var(--border-color); border-radius: 12px;">
+                                <div class="card-body" style="padding: 16px;">
+                                    <h4 style="margin: 0 0 10px; font-size: 14px; font-weight: 700;">Riwayat Proses QC (Permanen)</h4>
+                                    <p class="text-muted" style="font-size: 12px; margin-bottom: 10px;">Catatan ini bersifat append-only, sehingga histori reject/approve antar bulan tidak tertimpa.</p>
+                                    <div class="table-wrapper">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Waktu</th>
+                                                    <th>Aksi</th>
+                                                    <th>Pelaksana</th>
+                                                    <th>Status</th>
+                                                    <th>Catatan</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php $__currentLoopData = $importantQcHistoryLogs; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $qcLog): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                    <tr>
+                                                        <td><?php echo e(optional($qcLog->created_at)->format('d M Y H:i') ?? '-'); ?></td>
+                                                        <td>
+                                                            <div style="font-weight: 600; color: var(--text-primary);">
+                                                                <?php echo e($qcHistoryActionLabels[$qcLog->action] ?? ucfirst(str_replace('_', ' ', (string) $qcLog->action))); ?>
+
+                                                            </div>
+                                                            <?php if((string) $qcLog->action === 'verifier_decision_recorded' && $qcLog->verification && $qcLog->verification->verifier): ?>
+                                                                <small style="color: var(--text-muted);">Verifier: <?php echo e($qcLog->verification->verifier->name); ?></small>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td><?php echo e($qcLog->actor->name ?? '-'); ?></td>
+                                                        <td>
+                                                            <?php if($qcLog->status_before || $qcLog->status_after): ?>
+                                                                <span class="badge" style="background: #f8fafc; color: #334155; border: 1px solid #cbd5e1;">
+                                                                    <?php echo e($qcLog->status_before ?: '-'); ?> -> <?php echo e($qcLog->status_after ?: '-'); ?>
+
+                                                                </span>
+                                                            <?php else: ?>
+                                                                -
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td><?php echo e($qcLog->comment ?: '-'); ?></td>
+                                                    </tr>
+                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if($canReportWorkCompleted): ?>
+                            <form action="<?php echo e(route('sas.uspk-qc.report-completed', $uspk)); ?>" method="POST" onsubmit="return confirm('Lanjut kirim laporan pekerjaan selesai untuk proses verifikasi QC?')" style="margin-top: 12px;">
+                                <?php echo csrf_field(); ?>
+                                <button type="submit" class="btn btn-primary action-btn">
+                                    <i class="fas fa-flag-checkered"></i> Laporkan Pekerjaan Selesai
+                                </button>
+                            </form>
+                        <?php endif; ?>
+
+                        <?php if($canVerifyQc): ?>
+                            <div class="card" style="border: 1px solid var(--border-color); border-radius: 12px; margin-top: 12px;">
+                                <div class="card-body" style="padding: 16px;">
+                                    <h4 style="margin: 0 0 10px; font-size: 14px; font-weight: 700;">Verifikasi Pekerjaan (Tugas Anda)</h4>
+                                    <form action="<?php echo e(route('sas.uspk-qc.verify', $uspk)); ?>" method="POST">
+                                        <?php echo csrf_field(); ?>
+                                        <div class="form-group mb-3">
+                                            <label class="input-label">Catatan Verifikasi</label>
+                                            <textarea name="comment" class="form-control custom-textarea" rows="3" placeholder="Tuliskan hasil pengecekan Anda..."></textarea>
+                                        </div>
+                                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                            <button type="submit" name="action" value="approved" class="btn btn-success action-btn">
+                                                <i class="fas fa-check-circle"></i> Approve Verifikasi
+                                            </button>
+                                            <button type="submit" name="action" value="rejected" class="btn btn-danger action-btn">
+                                                <i class="fas fa-times-circle"></i> Tolak (Butuh Revisi)
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <?php
         $currentApproval = $uspk->approvals->first(function ($approval) {
             return in_array($approval->status, ['pending', 'on_hold'], true);
@@ -313,7 +785,8 @@
             $currentStepAssignee = $step?->user;
         }
         $currentApproverId = (int) ($currentStepAssignee->id ?? $currentApproval?->user_id ?? 0);
-        $actionableApproval = $currentApproval && $currentApproverId === (int) auth()->id() ? $currentApproval : null;
+        $isApprovalActionAllowed = $currentApproval && ($isSasAdmin || $currentApproverId === (int) auth()->id());
+        $actionableApproval = $isApprovalActionAllowed ? $currentApproval : null;
         $maxApprovalLevel = $uspk->approvals->max('level');
         $isFinalApprovalLevel = $actionableApproval && (int) $actionableApproval->level === (int) $maxApprovalLevel;
     ?>
@@ -341,6 +814,11 @@
                         <p class="text-muted" style="font-size: 13px; margin-bottom: 20px;">
                             Silakan pilih kartu tender di atas yang menjadi rekomendasi Anda. Keputusan akhir mutlak berada pada approver level tertinggi.
                         </p>
+                        <?php if($isSasAdmin): ?>
+                            <div class="alert alert-success" style="margin-bottom: 16px;">
+                                <i class="fas fa-user-shield"></i> Mode Admin Override aktif. Anda dapat memproses approval atas nama approver pada level aktif.
+                            </div>
+                        <?php endif; ?>
 
                         <form id="approvalActionForm" action="<?php echo e(route('sas.uspk.approve', $uspk)); ?>" method="POST">
                             <?php echo csrf_field(); ?>
@@ -405,6 +883,16 @@
                     <?php if($uspk->approvals->count() > 0): ?>
                         <div class="modern-timeline">
                             <?php $__currentLoopData = $uspk->approvals; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $approval): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php
+                                $rawComment = (string) ($approval->comment ?? '');
+                                $adminProxyLabel = null;
+                                $cleanComment = $rawComment;
+
+                                if (preg_match('/^\[Diproses oleh admin:\s*(.*?)\]\s*(.*)$/u', $rawComment, $matches)) {
+                                    $adminProxyLabel = trim((string) ($matches[1] ?? 'Admin'));
+                                    $cleanComment = trim((string) ($matches[2] ?? ''));
+                                }
+                            ?>
                             <div class="timeline-item">
                                 <div class="timeline-marker <?php echo e($approval->status); ?>"></div>
                                 <div class="timeline-content">
@@ -415,6 +903,12 @@
                                                 <?php echo e(ucfirst($approval->status)); ?>
 
                                             </span>
+                                            <?php if($adminProxyLabel): ?>
+                                                <span class="admin-proxy-badge" title="Aksi diproses oleh admin atas nama approver">
+                                                    On behalf by Admin: <?php echo e($adminProxyLabel); ?>
+
+                                                </span>
+                                            <?php endif; ?>
                                         </div>
                                         <span class="timeline-date">
                                             <i class="far fa-clock"></i> <?php echo e($approval->approved_at ? $approval->approved_at->format('d M Y H:i') : 'Menunggu'); ?>
@@ -430,10 +924,10 @@
                                         </div>
                                     <?php endif; ?>
 
-                                    <?php if($approval->comment): ?>
+                                    <?php if($cleanComment !== ''): ?>
                                         <div class="timeline-comment mt-2">
                                             <i class="fas fa-quote-left quote-icon"></i>
-                                            <?php echo e($approval->comment); ?>
+                                            <?php echo e($cleanComment); ?>
 
                                         </div>
                                     <?php endif; ?>
@@ -494,6 +988,114 @@
         .tags-container { display: flex; flex-wrap: wrap; gap: 6px; }
         .tag-badge { background: var(--primary-light); color: var(--primary); padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
         .status-badge { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .decision-summary-card { border-width: 2px; }
+        .decision-summary-card--final {
+            border-color: rgba(16, 185, 129, 0.35);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(5, 150, 105, 0.03));
+        }
+        .decision-summary-card--progress {
+            border-color: rgba(245, 158, 11, 0.35);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.09), rgba(245, 158, 11, 0.02));
+        }
+        .decision-summary-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+        .decision-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+        .decision-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+        .decision-value {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.3;
+        }
+        .decision-subvalue {
+            margin-top: 2px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .decision-summary-note {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            font-weight: 600;
+        }
+        .admin-proxy-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: #ecfeff;
+            border: 1px solid #a5f3fc;
+            color: #0e7490;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+        }
+        .qc-split-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        @media (max-width: 992px) {
+            .qc-split-grid { grid-template-columns: 1fr; }
+        }
+        .qc-collapsible {
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: #fff;
+            overflow: hidden;
+        }
+        .qc-collapsible-summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .qc-collapsible-summary::-webkit-details-marker { display: none; }
+        .qc-summary-text {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        .qc-collapsible-body {
+            padding: 14px 16px 16px;
+            background: #fcfdff;
+        }
+        .block-progress-bar {
+            width: 100%;
+            height: 12px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            overflow: hidden;
+        }
+        .block-progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0891b2, #22c55e);
+            border-radius: inherit;
+            transition: width 0.25s ease;
+        }
 
         /* === SPLIT LAYOUT GRID === */
         .bottom-split-grid {
@@ -522,6 +1124,20 @@
         .tender-card:hover { border-color: #cbd5e1; transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
         .tender-card--selected { border-color: var(--success) !important; background: rgba(16, 185, 129, 0.02); box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1) !important; }
         .tender-card--selected .tender-radio-indicator { background: var(--success); color: white; border-color: var(--success); }
+        .tender-card--winner {
+            border-color: #22c55e !important;
+            background: linear-gradient(180deg, rgba(34, 197, 94, 0.12), rgba(34, 197, 94, 0.02));
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15), 0 12px 20px -12px rgba(22, 163, 74, 0.55) !important;
+        }
+        .tender-card--winner .tender-subtitle {
+            color: #166534;
+            font-weight: 800;
+        }
+        .tender-card--winner .tender-radio-indicator {
+            background: #22c55e;
+            border-color: #22c55e;
+            color: #ffffff;
+        }
         
         .tender-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; gap: 12px; }
         .tender-subtitle { font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; letter-spacing: 0.5px; }

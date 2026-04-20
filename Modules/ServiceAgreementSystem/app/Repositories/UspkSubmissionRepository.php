@@ -8,7 +8,23 @@ class UspkSubmissionRepository
 {
     public function getAll(?string $status = null, ?int $userId = null)
     {
-        $query = UspkSubmission::with(['department', 'subDepartment', 'block', 'job', 'submitter', 'legalUploader', 'tenders.contractor', 'selectedTender.contractor'])
+        $query = UspkSubmission::with([
+            'department',
+            'subDepartment',
+            'block',
+            'job',
+            'submitter',
+            'legalUploader',
+            'submitterSignedUploader',
+            'qcAssigner',
+            'qcVerifications.verifier',
+            'qcVerificationLogs.actor',
+            'qcVerificationLogs.verification.verifier',
+            'blockProgresses.block',
+            'blockProgresses.completedBy',
+            'tenders.contractor',
+            'selectedTender.contractor',
+        ])
             ->latest();
 
         if ($status) {
@@ -32,6 +48,13 @@ class UspkSubmissionRepository
             'budgetActivity',
             'submitter',
             'legalUploader',
+            'submitterSignedUploader',
+            'qcAssigner',
+            'qcVerifications.verifier',
+            'qcVerificationLogs.actor',
+            'qcVerificationLogs.verification.verifier',
+            'blockProgresses.block',
+            'blockProgresses.completedBy',
             'selectedTender.contractor',
             'tenders.contractor',
             'approvals.voteTender.contractor',

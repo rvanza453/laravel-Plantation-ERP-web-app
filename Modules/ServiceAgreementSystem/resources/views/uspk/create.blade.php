@@ -364,6 +364,9 @@
         const contractorsData = @json($contractors);
         const departmentsData = @json($departments);
         const jobsData = @json($jobs);
+        const apiSubDepartmentsUrlTemplate = @json(route('sas.api.sub-departments', ['departmentId' => '__DEPARTMENT_ID__']));
+        const apiBlocksUrlTemplate = @json(route('sas.api.blocks', ['subDepartmentId' => '__SUB_DEPARTMENT_ID__']));
+        const apiBudgetActivitiesBaseUrl = @json(route('sas.api.budget-activities'));
         
         const selectedBudgetId = @json(old('uspk_budget_activity_id'));
         const initialDepartmentId = @json(old('department_id'));
@@ -576,7 +579,7 @@
                 $('#sub_department_id').html('<option value="">-- Pilih Afdeling --</option>');
                 return;
             }
-            const url = `/sas/api/sub-departments/${departmentId}`;
+            const url = apiSubDepartmentsUrlTemplate.replace('__DEPARTMENT_ID__', encodeURIComponent(String(departmentId)));
             $('#sub_department_id').html('<option value="">Memuat...</option>');
             
             try {
@@ -602,7 +605,7 @@
                 $('#block_ids').empty().trigger('change.select2');
                 return;
             }
-            const url = `/sas/api/blocks/${subDepartmentId}`;
+            const url = apiBlocksUrlTemplate.replace('__SUB_DEPARTMENT_ID__', encodeURIComponent(String(subDepartmentId)));
             $('#block_ids').html('<option value="">Memuat...</option>').trigger('change.select2');
             
             try {
@@ -639,7 +642,7 @@
                 params.append('job_id', String(jobId));
             }
 
-            const url = `/sas/api/budget-activities?${params.toString()}`;
+            const url = `${apiBudgetActivitiesBaseUrl}?${params.toString()}`;
             $('#uspk_budget_activity_id').html('<option value="">Memuat...</option>').trigger('change.select2');
             
             try {

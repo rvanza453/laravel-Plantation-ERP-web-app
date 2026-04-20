@@ -9,12 +9,17 @@ use Illuminate\Support\Facades\Auth;
 
 class TicketController extends Controller
 {
+    protected function isAdminUser(): bool
+    {
+        return Auth::user()?->hasRole('Admin') === true;
+    }
+
     public function index(Request $request)
     {
         $status = $request->get('status');
         $query = Ticket::with('user');
         
-        if (!Auth::user()->hasRole('Admin')) {
+        if (!$this->isAdminUser()) {
             $query->where('user_id', Auth::id());
         }
 
@@ -25,10 +30,10 @@ class TicketController extends Controller
         $tickets = $query->orderBy('created_at', 'desc')->paginate(10);
         
         $stats = [
-            'total' => Ticket::when(!Auth::user()->hasRole('Admin'), fn($q) => $q->where('user_id', Auth::id()))->count(),
-            'open' => Ticket::when(!Auth::user()->hasRole('Admin'), fn($q) => $q->where('user_id', Auth::id()))->where('status', 'Open')->count(),
-            'in_progress' => Ticket::when(!Auth::user()->hasRole('Admin'), fn($q) => $q->where('user_id', Auth::id()))->where('status', 'In Progress')->count(),
-            'resolved' => Ticket::when(!Auth::user()->hasRole('Admin'), fn($q) => $q->where('user_id', Auth::id()))->whereIn('status', ['Resolved', 'Closed'])->count(),
+            'total' => Ticket::when(!$this->isAdminUser(), fn($q) => $q->where('user_id', Auth::id()))->count(),
+            'open' => Ticket::when(!$this->isAdminUser(), fn($q) => $q->where('user_id', Auth::id()))->where('status', 'Open')->count(),
+            'in_progress' => Ticket::when(!$this->isAdminUser(), fn($q) => $q->where('user_id', Auth::id()))->where('status', 'In Progress')->count(),
+            'resolved' => Ticket::when(!$this->isAdminUser(), fn($q) => $q->where('user_id', Auth::id()))->whereIn('status', ['Resolved', 'Closed'])->count(),
         ];
 
         return view('systemsupport::tickets.index', compact('tickets', 'stats'));
@@ -63,8 +68,10 @@ class TicketController extends Controller
     public function show($id)
     {
         $ticket = Ticket::with('user')->findOrFail($id);
+        $currentUserId = (int) Auth::id();
+        $ticketOwnerId = (int) $ticket->user_id;
         
-        if (!Auth::user()->hasRole('Admin') && $ticket->user_id !== Auth::id()) {
+        if (!$this->isAdminUser() && $ticketOwnerId !== $currentUserId) {
             abort(403);
         }
 
@@ -75,7 +82,7 @@ class TicketController extends Controller
     {
         $ticket = Ticket::findOrFail($id);
         
-        if (!Auth::user()->hasRole('Admin')) {
+        if (!$this->isAdminUser()) {
             abort(403, 'Akses ditolak.');
         }
 

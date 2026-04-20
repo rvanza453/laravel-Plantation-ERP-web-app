@@ -21,7 +21,11 @@ class SasRoleMiddleware
             abort(401);
         }
 
-        $sasRole = $user->moduleRole('sas');
+        if ($user->hasRole('Super Admin')) {
+            return $next($request);
+        }
+
+        $sasRole = $this->normalizeRoleName($user->moduleRole('sas'));
 
         if (!$sasRole) {
             if ($request->expectsJson()) {
@@ -32,10 +36,32 @@ class SasRoleMiddleware
                 ->with('error', 'Anda tidak memiliki akses ke modul Service Agreement System. Hubungi administrator untuk mendapatkan role yang sesuai.');
         }
 
-        if (!empty($allowedRoles) && !in_array($sasRole, $allowedRoles, true)) {
-            abort(403, 'Role Anda (' . $sasRole . ') tidak memiliki izin untuk mengakses halaman ini.');
+        if (!empty($allowedRoles) && !$this->hasAllowedRole($user, $sasRole, $allowedRoles)) {
+            abort(403, 'Role Anda (' . ($user->moduleRole('sas') ?? '-') . ') tidak memiliki izin untuk mengakses halaman ini.');
         }
 
         return $next($request);
+    }
+
+    protected function hasAllowedRole($user, string $sasRole, array $allowedRoles): bool
+    {
+        if ($user->hasRole('Super Admin')) {
+            return true;
+        }
+
+        $allowed = array_map(fn ($role) => $this->normalizeRoleName((string) $role), $allowedRoles);
+
+        return in_array($sasRole, $allowed, true);
+    }
+
+    protected function normalizeRoleName(?string $role): string
+    {
+        $normalized = strtolower(trim((string) $role));
+
+        return match ($normalized) {
+            'asisten afdeling', 'pengaju' => 'staff',
+            'manager', 'ktu', 'gm' => 'approver',
+            default => $normalized,
+        };
     }
 }

@@ -13,12 +13,10 @@ return [
             'label' => 'Service Agreement System',
             'roles' => [
                 'Admin',
-                'Asisten Afdeling',
+                'Staff',
                 'Approver',
-                'Manager',
-                'KTU',
-                'GM',
                 'Legal',
+                'QC',
             ],
         ],
         'qc' => [

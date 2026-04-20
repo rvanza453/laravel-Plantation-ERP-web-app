@@ -464,6 +464,11 @@
         .badge-rejected { background: #fef2f2; color: #dc2626; }
         .badge-pending { background: #fff7ed; color: #ea580c; }
         .badge-on_hold { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+        .badge-pending_assignment { background: #eff6ff; color: #1d4ed8; }
+        .badge-assigned { background: #f5f3ff; color: #6d28d9; }
+        .badge-in_verification { background: #ecfeff; color: #0e7490; }
+        .badge-verified { background: #ecfdf5; color: #047857; }
+        .badge-revision_required { background: #fff7ed; color: #c2410c; }
 
         /* Stats */
         .stats-grid {
@@ -800,6 +805,24 @@
         </div>
 
         <nav class="sidebar-nav">
+            @php
+                $rawSasRole = strtolower(trim((string) auth()->user()?->moduleRole('sas')));
+                $sasRole = match ($rawSasRole) {
+                    'asisten afdeling', 'pengaju' => 'staff',
+                    'manager', 'ktu', 'gm' => 'approver',
+                    default => $rawSasRole,
+                };
+
+                $isSasAdmin = $sasRole === 'admin' || auth()->user()?->hasAnyRole(['Admin', 'Super Admin']);
+                $isSasStaff = $sasRole === 'staff';
+                $isSasApprover = $sasRole === 'approver';
+                $isSasLegal = $sasRole === 'legal' || auth()->user()?->hasRole('Legal');
+                $isSasQc = $sasRole === 'qc';
+                $canSubmitUspk = $isSasStaff || $isSasAdmin;
+                $canApproveUspk = $isSasApprover || $isSasAdmin;
+                $canReviewLegal = $isSasLegal || $isSasAdmin;
+                $canProcessQc = $isSasQc || $isSasStaff || $isSasAdmin;
+            @endphp
             <div class="sidebar-section">
                 <div class="sidebar-section-title">Menu Utama</div>
                 <a href="{{ route('sas.dashboard') }}" class="sidebar-link {{ request()->routeIs('sas.dashboard') ? 'active' : '' }}">
@@ -807,6 +830,7 @@
                 </a>
             </div>
 
+            @if($isSasAdmin)
             <div class="sidebar-section">
                 <div class="sidebar-section-title">Master Data</div>
                 <a href="{{ route('sas.contractors.index') }}" class="sidebar-link {{ request()->routeIs('sas.contractors.*') ? 'active' : '' }}">
@@ -816,25 +840,31 @@
                     <i class="fas fa-sitemap"></i> Approval Schema
                 </a>
             </div>
+            @endif
 
             <div class="sidebar-section">
                 <div class="sidebar-section-title">USPK</div>
                 <a href="{{ route('sas.uspk.index') }}" class="sidebar-link {{ request()->routeIs('sas.uspk.*') && !request()->routeIs('sas.uspk-approvals.*') ? 'active' : '' }}">
                     <i class="fas fa-file-signature"></i> Pengajuan USPK
                 </a>
+                @if($isSasAdmin)
                 <a href="{{ route('sas.uspk-budgets.index') }}" class="sidebar-link menu-uspk-budget {{ request()->routeIs('sas.uspk-budgets.*') ? 'active' : '' }}" data-menu="uspk-budget">
                     <i class="fas fa-wallet"></i> Budget USPK
                 </a>
+                @endif
+                @if($canApproveUspk)
                 <a href="{{ route('sas.uspk-approvals.index') }}" class="sidebar-link {{ request()->routeIs('sas.uspk-approvals.*') ? 'active' : '' }}">
                     <i class="fas fa-check-double"></i> Persetujuan Saya
                 </a>
-                @php
-                    $sasRole = strtolower(trim((string) auth()->user()?->moduleRole('sas')));
-                    $isLegalSasRole = $sasRole === 'legal' || auth()->user()?->hasAnyRole(['Legal', 'Super Admin']);
-                @endphp
-                @if($isLegalSasRole)
+                @endif
+                @if($canReviewLegal)
                 <a href="{{ route('sas.uspk-legal.index') }}" class="sidebar-link {{ request()->routeIs('sas.uspk-legal.*') ? 'active' : '' }}">
                     <i class="fas fa-balance-scale"></i> Review Legal SPK
+                </a>
+                @endif
+                @if($canProcessQc)
+                <a href="{{ route('sas.uspk-qc.index') }}" class="sidebar-link {{ request()->routeIs('sas.uspk-qc.*') ? 'active' : '' }}">
+                    <i class="fas fa-clipboard-check"></i> Proses QC SPK
                 </a>
                 @endif
             </div>

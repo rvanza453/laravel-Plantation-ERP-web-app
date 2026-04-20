@@ -1,64 +1,315 @@
 <x-serviceagreementsystem::layouts.master :title="'Persetujuan Saya'">
-    <div class="d-flex justify-between align-center mb-4">
-        <div>
-            <h1 style="font-size: 24px; font-weight: 700; color: var(--text-primary);">Persetujuan Saya</h1>
-            <p class="text-muted" style="font-size: 14px;">Daftar USPK yang memerlukan persetujuan dari Anda.</p>
+    @php
+        $totalPending = $pendingUspks->total();
+    @endphp
+
+    <div class="approval-hero mb-4">
+        <div class="hero-content">
+            <h1 class="approval-title">Persetujuan Saya</h1>
+            <p class="approval-subtitle">Daftar pengajuan USPK yang menunggu keputusan Anda.</p>
+        </div>
+        <div class="approval-counter">
+            <div class="counter-value">{{ $totalPending }}</div>
+            <div class="counter-label">Menunggu Proses</div>
         </div>
     </div>
 
-    <div class="card">
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>No. USPK</th>
-                        <th>Judul Pekerjaan</th>
-                        <th>Department</th>
-                        <th>Blok</th>
-                        <th>Estimasi Nilai</th>
-                        <th>Pengaju</th>
-                        <th>Tanggal Ajuan</th>
-                        <th class="text-right">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($pendingUspks as $uspk)
-                    <tr>
-                        <td style="font-weight: 600; color: var(--text-primary);">
-                            <a href="{{ route('sas.uspk.show', $uspk) }}" style="color: var(--accent); text-decoration: none;">
-                                {{ $uspk->uspk_number }}
-                            </a>
-                        </td>
-                        <td>{{ Str::limit($uspk->title, 40) }}</td>
-                        <td>{{ $uspk->department->name ?? '-' }}</td>
-                        <td>{{ $uspk->block->name ?? '-' }}</td>
-                        <td style="font-weight: 600;">Rp {{ number_format($uspk->estimated_value, 0, ',', '.') }}</td>
-                        <td>{{ $uspk->submitter->name ?? '-' }}</td>
-                        <td>{{ $uspk->created_at->format('d M Y') }}</td>
-                        <td class="text-right">
-                            <a href="{{ route('sas.uspk.show', $uspk) }}" class="btn btn-primary btn-sm" title="Tinjau & Proses">
-                                <i class="fas fa-gavel"></i> Proses
-                            </a>
-                        </td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="8">
-                            <div class="empty-state">
-                                <i class="fas fa-check-circle" style="color: var(--success);"></i>
-                                <p class="mb-2" style="font-weight: 600; font-size: 16px; color: var(--text-primary);">Semua Selesai!</p>
-                                <p class="text-muted">Tidak ada pengajuan USPK yang menunggu persetujuan Anda saat ini.</p>
+    @if($pendingUspks->count() > 0)
+        <div class="approval-grid">
+            @foreach($pendingUspks as $uspk)
+                <article class="approval-card">
+                    <div class="card-ribbon">
+                        <i class="fas fa-exclamation-circle me-1"></i> Butuh Keputusan
+                    </div>
+
+                    <div class="card-top">
+                        <a href="{{ route('sas.uspk.show', $uspk) }}" class="uspk-number">
+                            {{ $uspk->uspk_number }}
+                        </a>
+                        <span class="status-chip">Pending</span>
+                    </div>
+
+                    {{-- CSS Line Clamp untuk membatasi max 2 baris agar tinggi card rapi --}}
+                    <h3 class="work-title" title="{{ $uspk->title }}">
+                        {{ $uspk->title }}
+                    </h3>
+
+                    <div class="meta-grid">
+                        <div class="meta-item">
+                            <div class="meta-label">Department</div>
+                            <div class="meta-value">{{ $uspk->department->name ?? '-' }}</div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">Afdeling / Blok</div>
+                            {{-- Integrasi Tooltip & Badge +X --}}
+                            <div class="meta-value d-flex align-items-start gap-1" title="{{ $uspk->blocks->pluck('name')->join(', ') }}">
+                                <span class="d-inline-block text-truncate" style="max-width: 100px;">
+                                    {{ $uspk->subDepartment->name ?? '-' }}
+                                    @if($uspk->blocks && $uspk->blocks->count() > 0)
+                                        / {{ $uspk->blocks->first()->name }}
+                                    @endif
+                                </span>
+                                @if($uspk->blocks && $uspk->blocks->count() > 1)
+                                    <span class="badge rounded-pill" style="background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 0.65rem; padding: 0.2rem 0.4rem; margin-top: 0.1rem;">
+                                        +{{ $uspk->blocks->count() - 1 }}
+                                    </span>
+                                @endif
                             </div>
-                        </td>
-                    </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">Pengaju</div>
+                            <div class="meta-value text-truncate" style="max-width: 120px;" title="{{ $uspk->submitter->name ?? '-' }}">
+                                {{ $uspk->submitter->name ?? '-' }}
+                            </div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">Tanggal Ajuan</div>
+                            <div class="meta-value">{{ $uspk->created_at->format('d M Y') }}</div>
+                        </div>
+                    </div>
+
+                    <div class="budget-highlight">
+                        <span class="text-muted">Estimasi Nilai</span>
+                        <strong class="font-monospace">Rp {{ number_format($uspk->estimated_value, 0, ',', '.') }}</strong>
+                    </div>
+
+                    <div class="card-actions mt-auto">
+                        <a href="{{ route('sas.uspk.show', $uspk) }}" class="btn btn-primary btn-sm w-100 rounded-3 shadow-sm py-2">
+                            <i class="fas fa-gavel me-1"></i> Tinjau & Proses
+                        </a>
+                    </div>
+                </article>
+            @endforeach
         </div>
-        @if($pendingUspks->hasPages())
-        <div class="pagination-wrapper">
+    @else
+        <div class="card border-0 shadow-sm rounded-4 text-center py-5 mt-4">
+            <div class="empty-state">
+                <div class="mb-3">
+                    <i class="fas fa-check-circle fa-4x" style="color: #10b981; opacity: 0.2;"></i>
+                    <i class="fas fa-check-circle fa-2x" style="color: #10b981; margin-top: -45px; position: absolute; margin-left: -35px;"></i>
+                </div>
+                <h4 class="mb-2" style="font-weight: 700; color: #0f172a;">Semua Selesai!</h4>
+                <p class="text-muted mb-0">Tidak ada pengajuan USPK yang menunggu persetujuan Anda saat ini.</p>
+            </div>
+        </div>
+    @endif
+
+    @if($pendingUspks->hasPages())
+        <div class="d-flex justify-content-center mt-4">
             {{ $pendingUspks->links() }}
         </div>
-        @endif
-    </div>
+    @endif
+
+    @push('styles')
+    <style>
+        .approval-hero {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            padding: 28px 32px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #0f766e 0%, #0d9488 50%, #0f172a 100%);
+            color: #f8fafc;
+            box-shadow: 0 10px 25px -5px rgba(15, 118, 110, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Subtle background pattern/glow */
+        .approval-hero::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0; bottom: 0; left: 0;
+            background: radial-gradient(circle at top right, rgba(255,255,255,0.1) 0%, transparent 60%);
+            pointer-events: none; 
+        }
+
+        .hero-content { position: relative; z-index: 1; }
+        
+        .approval-title {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+        }
+
+        .approval-subtitle {
+            margin: 0;
+            color: rgba(248, 250, 252, 0.85);
+            font-size: 15px;
+        }
+
+        .approval-counter {
+            position: relative;
+            z-index: 1;
+            min-width: 160px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .counter-value {
+            font-size: 36px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .counter-label {
+            margin-top: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: rgba(248, 250, 252, 0.9);
+        }
+
+        .approval-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+
+        .approval-card {
+            position: relative;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+
+        .approval-card:hover {
+            transform: translateY(-5px);
+            border-color: #cbd5e1;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+        }
+
+        .card-ribbon {
+            position: absolute;
+            top: -12px;
+            right: 20px;
+            background: #f59e0b;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(245, 158, 11, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        }
+
+        .uspk-number {
+            color: #2563eb;
+            font-size: 14px;
+            font-weight: 700;
+            text-decoration: none;
+            background: #eff6ff;
+            padding: 4px 10px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .uspk-number:hover {
+            background: #dbeafe;
+        }
+
+        .status-chip {
+            background: #fef3c7;
+            color: #d97706;
+            border: 1px solid #fde68a;
+            border-radius: 999px;
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .work-title {
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.4;
+            margin: 0;
+            color: #0f172a;
+            /* Memotong teks maksimal 2 baris */
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            min-height: 50px; 
+        }
+
+        .meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px 12px;
+            border-top: 1px dashed #e2e8f0;
+            border-bottom: 1px dashed #e2e8f0;
+            padding: 16px 0;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .meta-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        .meta-value {
+            font-size: 13px;
+            color: #334155;
+            font-weight: 600;
+        }
+
+        .budget-highlight {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            padding: 12px 16px;
+        }
+
+        .budget-highlight strong {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        @media (max-width: 768px) {
+            .approval-hero {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 24px;
+            }
+            .approval-counter {
+                width: 100%;
+            }
+        }
+    </style>
+    @endpush
 </x-serviceagreementsystem::layouts.master>

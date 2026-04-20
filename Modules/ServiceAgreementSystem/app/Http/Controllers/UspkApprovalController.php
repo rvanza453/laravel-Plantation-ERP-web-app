@@ -16,14 +16,22 @@ class UspkApprovalController extends Controller
     public function index()
     {
         $userId = auth()->id();
-        // Fetch USPK submissions that have a pending approval step for the current user
-        $pendingUspks = UspkSubmission::whereHas('approvals', function ($query) use ($userId) {
-            $query->where('user_id', $userId)
-                  ->whereIn('status', ['pending', 'on_hold']);
-        })
-        ->with(['department', 'subDepartment', 'block', 'submitter'])
-        ->orderBy('created_at', 'desc')
-        ->paginate(10);
+
+        $user = auth()->user();
+        $role = strtolower(trim((string) $user?->moduleRole('sas')));
+        $isSasAdmin = $role === 'admin' || $user?->hasAnyRole(['Admin', 'Super Admin']);
+
+        $pendingUspks = UspkSubmission::query()
+            ->whereHas('approvals', function ($query) use ($userId, $isSasAdmin) {
+                $query->whereIn('status', ['pending', 'on_hold']);
+
+                if (!$isSasAdmin) {
+                    $query->where('user_id', $userId);
+                }
+            })
+            ->with(['department', 'subDepartment', 'block', 'submitter'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
 
         return view('serviceagreementsystem::uspk-approval.index', compact('pendingUspks'));
     }

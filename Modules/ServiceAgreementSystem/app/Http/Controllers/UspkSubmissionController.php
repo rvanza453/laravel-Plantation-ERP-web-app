@@ -24,7 +24,8 @@ class UspkSubmissionController extends Controller
     public function index(Request $request)
     {
         $status = $request->get('status');
-        $submissions = $this->uspkService->getAll($status);
+        $userId = $this->shouldScopeToSubmitter() ? auth()->id() : null;
+        $submissions = $this->uspkService->getAll($status, $userId);
         return view('serviceagreementsystem::uspk.index', compact('submissions', 'status'));
     }
 
@@ -63,12 +64,20 @@ class UspkSubmissionController extends Controller
 
     public function show(UspkSubmission $uspk)
     {
+        if ($this->shouldScopeToSubmitter() && (int) $uspk->submitted_by !== (int) auth()->id()) {
+            abort(403, 'Anda tidak memiliki akses ke data USPK ini.');
+        }
+
+        $this->uspkService->reconcileWinnerFromFinalApproval($uspk);
+
         $uspk = $this->uspkService->findById($uspk->id);
         return view('serviceagreementsystem::uspk.show', compact('uspk'));
     }
 
     public function edit(UspkSubmission $uspk)
     {
+        $this->authorizeManageSubmission($uspk, 'edit');
+
         if (!$uspk->isEditable()) {
             return redirect()->route('sas.uspk.show', $uspk)->with('error', 'USPK tidak dapat diedit.');
         }
@@ -85,6 +94,8 @@ class UspkSubmissionController extends Controller
 
     public function update(StoreUspkSubmissionRequest $request, UspkSubmission $uspk)
     {
+        $this->authorizeManageSubmission($uspk, 'update');
+
         if (!$uspk->isEditable()) {
             return redirect()->route('sas.uspk.show', $uspk)->with('error', 'USPK tidak dapat diedit.');
         }
@@ -99,6 +110,7 @@ class UspkSubmissionController extends Controller
 
     public function destroy(UspkSubmission $uspk)
     {
+        $this->authorizeManageSubmission($uspk, 'destroy');
         $this->uspkService->delete($uspk);
         return redirect()->route('sas.uspk.index')->with('success', 'USPK berhasil dihapus.');
     }
@@ -108,12 +120,60 @@ class UspkSubmissionController extends Controller
      */
     public function submit(UspkSubmission $uspk)
     {
+        $this->authorizeManageSubmission($uspk);
+
         try {
             $this->uspkService->submit($uspk);
             return redirect()->route('sas.uspk.show', $uspk)->with('success', 'USPK berhasil disubmit.');
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }
+    }
+
+    protected function authorizeManageSubmission(UspkSubmission $uspk, string $action = 'manage'): void
+    {
+        if ($this->isSasAdmin()) {
+            return;
+        }
+
+        if ((int) $uspk->submitted_by !== (int) auth()->id()) {
+            abort(403, 'Anda tidak berwenang mengelola USPK ini.');
+        }
+
+        if (in_array($action, ['edit', 'update', 'destroy'], true) && $this->hasAnyApproverDecision($uspk)) {
+            abort(403, 'USPK tidak dapat diubah atau dihapus karena sudah ada keputusan dari approver.');
+        }
+    }
+
+    protected function shouldScopeToSubmitter(): bool
+    {
+        return $this->getCanonicalSasRole() === 'staff';
+    }
+
+    protected function isSasAdmin(): bool
+    {
+        $user = auth()->user();
+        $role = $this->getCanonicalSasRole();
+
+        return $role === 'admin' || $user?->hasAnyRole(['Admin', 'Super Admin']);
+    }
+
+    protected function hasAnyApproverDecision(UspkSubmission $uspk): bool
+    {
+        return $uspk->approvals()
+            ->whereIn('status', ['approved', 'on_hold', 'rejected'])
+            ->exists();
+    }
+
+    protected function getCanonicalSasRole(): string
+    {
+        $role = strtolower(trim((string) auth()->user()?->moduleRole('sas')));
+
+        return match ($role) {
+            'asisten afdeling', 'pengaju' => 'staff',
+            'manager', 'ktu', 'gm' => 'approver',
+            default => $role,
+        };
     }
 
     /**
