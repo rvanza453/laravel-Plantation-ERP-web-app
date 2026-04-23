@@ -3,8 +3,12 @@
 namespace Modules\ServiceAgreementSystem\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Modules\ServiceAgreementSystem\Http\Requests\StoreUspkSubmissionRequest;
+use Modules\ServiceAgreementSystem\Models\UspkApproval;
+use Modules\ServiceAgreementSystem\Models\UspkBlockProgress;
 use Modules\ServiceAgreementSystem\Models\UspkSubmission;
 use Modules\ServiceAgreementSystem\Services\ContractorService;
 use Modules\ServiceAgreementSystem\Services\UspkSubmissionService;
@@ -26,7 +30,105 @@ class UspkSubmissionController extends Controller
         $status = $request->get('status');
         $userId = $this->shouldScopeToSubmitter() ? auth()->id() : null;
         $submissions = $this->uspkService->getAll($status, $userId);
-        return view('serviceagreementsystem::uspk.index', compact('submissions', 'status'));
+
+        $authUserId = (int) auth()->id();
+        $canonicalRole = $this->getCanonicalSasRole();
+        $isSasAdmin = $this->isSasAdmin();
+        $today = Carbon::today();
+        $soonDeadline = Carbon::today()->addDays(3);
+
+        $scopeForStaff = function ($query) use ($canonicalRole, $authUserId) {
+            if ($canonicalRole === 'staff') {
+                $query->where('submitted_by', $authUserId);
+            }
+        };
+
+        $approvalActionItems = UspkSubmission::query()
+            ->with(['department'])
+            ->whereIn('status', [UspkSubmission::STATUS_SUBMITTED, UspkSubmission::STATUS_IN_REVIEW])
+            ->whereHas('approvals', function ($query) use ($authUserId, $isSasAdmin) {
+                $query->where('status', UspkApproval::STATUS_PENDING);
+
+                if (!$isSasAdmin) {
+                    $query->where('user_id', $authUserId);
+                }
+            })
+            ->when(!$isSasAdmin && $canonicalRole !== 'approver', $scopeForStaff)
+            ->latest()
+            ->limit(6)
+            ->get();
+
+        $hasLegalSpkPathColumn = Schema::hasColumn('uspk_submissions', 'legal_spk_document_path');
+        $hasSubmitterSignedSpkColumn = Schema::hasColumn('uspk_submissions', 'submitter_signed_spk_document_path');
+        $hasBlockProgressTable = Schema::hasTable('uspk_block_progresses');
+
+        $legalPublishItems = $hasLegalSpkPathColumn
+            ? UspkSubmission::query()
+                ->with(['department'])
+                ->where('status', UspkSubmission::STATUS_APPROVED)
+                ->whereNull('legal_spk_document_path')
+                ->when($canonicalRole === 'staff', $scopeForStaff)
+                ->latest()
+                ->limit(6)
+                ->get()
+            : collect();
+
+        $deadlineAlertItems = ($hasSubmitterSignedSpkColumn && $hasBlockProgressTable)
+            ? UspkSubmission::query()
+                ->with(['department', 'blockProgresses.block'])
+                ->whereNotNull('submitter_signed_spk_document_path')
+                ->whereHas('blockProgresses', function ($query) use ($soonDeadline) {
+                    $query->where('status', UspkBlockProgress::STATUS_PENDING)
+                        ->whereNotNull('deadline_at')
+                        ->whereDate('deadline_at', '<=', $soonDeadline);
+                })
+                ->when($canonicalRole === 'staff', $scopeForStaff)
+                ->latest()
+                ->limit(6)
+                ->get()
+                ->map(function (UspkSubmission $submission) use ($today) {
+                    $pendingWithDeadline = $submission->blockProgresses
+                        ->filter(function ($progress) {
+                            return (string) $progress->status === UspkBlockProgress::STATUS_PENDING
+                                && !empty($progress->deadline_at);
+                        })
+                        ->sortBy('deadline_at')
+                        ->values();
+
+                    $nearest = $pendingWithDeadline->first();
+                    $overdueCount = $pendingWithDeadline->filter(fn ($progress) => $progress->deadline_at->lt($today))->count();
+
+                    return [
+                        'submission' => $submission,
+                        'nearest_deadline' => optional($nearest)->deadline_at,
+                        'overdue_count' => $overdueCount,
+                        'due_soon_count' => $pendingWithDeadline->count() - $overdueCount,
+                    ];
+                })
+            : collect();
+
+        $deadlineSetupItems = ($hasSubmitterSignedSpkColumn && $hasBlockProgressTable)
+            ? UspkSubmission::query()
+                ->with(['department', 'blockProgresses'])
+                ->whereNotNull('submitter_signed_spk_document_path')
+                ->whereHas('blockProgresses', function ($query) {
+                    $query->whereNull('deadline_at');
+                })
+                ->when($canonicalRole === 'staff', $scopeForStaff)
+                ->latest()
+                ->limit(6)
+                ->get()
+            : collect();
+
+        $reminders = [
+            'approvalActionItems' => $approvalActionItems,
+            'legalPublishItems' => $legalPublishItems,
+            'deadlineAlertItems' => $deadlineAlertItems,
+            'deadlineSetupItems' => $deadlineSetupItems,
+            'canManageDeadline' => in_array($canonicalRole, ['qc', 'admin'], true) || $isSasAdmin,
+        ];
+
+        return view('serviceagreementsystem::uspk.index', compact('submissions', 'status', 'reminders'));
     }
 
     public function create()

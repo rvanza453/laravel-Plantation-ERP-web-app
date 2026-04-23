@@ -4,6 +4,7 @@ namespace Modules\ServiceAgreementSystem\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Modules\ServiceAgreementSystem\Models\UspkBlockProgress;
 use Modules\ServiceAgreementSystem\Models\UspkSubmission;
 use Modules\ServiceAgreementSystem\Models\UspkTender;
@@ -28,6 +29,14 @@ class UspkSubmissionService
 
     public function reconcileWinnerFromFinalApproval(UspkSubmission $submission): void
     {
+        if (!Schema::hasColumn('uspk_approvals', 'vote_tender_id')) {
+            Log::warning('Skip final approval reconciliation: vote_tender_id column is missing.', [
+                'uspk_submission_id' => $submission->id,
+            ]);
+
+            return;
+        }
+
         $maxApprovedLevel = (int) $submission->approvals()
             ->where('status', 'approved')
             ->max('level');

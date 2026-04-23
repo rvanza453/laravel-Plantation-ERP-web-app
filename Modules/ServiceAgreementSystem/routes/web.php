@@ -9,6 +9,7 @@ use Modules\ServiceAgreementSystem\Http\Controllers\UspkApprovalSchemaController
 use Modules\ServiceAgreementSystem\Http\Controllers\UspkBudgetController;
 use Modules\ServiceAgreementSystem\Http\Controllers\UspkLegalController;
 use Modules\ServiceAgreementSystem\Http\Controllers\UspkQcController;
+use Modules\ServiceAgreementSystem\Http\Controllers\UspkBappController;
 
 // Authenticated routes
 Route::middleware(['auth', 'assigned.role', 'sas.role'])->prefix('sas')->name('sas.')->group(function () {
@@ -39,6 +40,11 @@ Route::middleware(['auth', 'assigned.role', 'sas.role'])->prefix('sas')->name('s
     Route::post('uspk-budgets', [UspkBudgetController::class, 'store'])
         ->name('uspk-budgets.store')
         ->middleware('sas.role:Admin');
+        
+    // Unified Task & Approval Hub
+    Route::get('tasks', [\Modules\ServiceAgreementSystem\Http\Controllers\UspkTaskController::class, 'index'])
+        ->name('tasks.index')
+        ->middleware('sas.role:Staff,Approver,Legal,QC,Admin');
 
     // USPK Approvals (Approver/Admin)
     Route::get('uspk-approvals', [UspkApprovalController::class, 'index'])
@@ -53,6 +59,9 @@ Route::middleware(['auth', 'assigned.role', 'sas.role'])->prefix('sas')->name('s
     Route::post('uspk/{uspk}/reject', [UspkApprovalController::class, 'reject'])
         ->name('uspk.reject')
         ->middleware('sas.role:Approver,Admin');
+    Route::post('uspk/{uspk}/rollback-approval', [UspkApprovalController::class, 'rollback'])
+        ->name('uspk.rollback-approval')
+        ->middleware('sas.role:Admin');
 
     // USPK Legal SPK Workflow (Legal/Admin)
     Route::get('uspk-legal', [UspkLegalController::class, 'index'])
@@ -106,4 +115,10 @@ Route::middleware(['auth', 'assigned.role', 'sas.role'])->prefix('sas')->name('s
     Route::get('api/budget-activities', [UspkSubmissionController::class, 'getBudgetActivities'])
         ->name('api.budget-activities')
         ->middleware('sas.role:Staff,Admin');
+    Route::get('api/eligible-uspks', [UspkBappController::class, 'getEligibleUspks'])
+        ->name('api.eligible-uspks');
+
+    // USPK BAPP
+    Route::resource('bapp', UspkBappController::class)
+        ->only(['index', 'create', 'store', 'show']);
 });

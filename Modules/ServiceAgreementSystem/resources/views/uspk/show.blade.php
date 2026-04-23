@@ -20,15 +20,16 @@
             \Modules\ServiceAgreementSystem\Models\UspkSubmission::QC_STATUS_REVISION_REQUIRED => 'Perlu Revisi Pekerjaan',
         ];
         $qcHistoryActionLabels = [
-            'submitter_signed_spk_uploaded' => 'Upload SPK TTD Pengaju',
+            'submitter_signed_spk_uploaded' => 'Upload SPK Dengan TTD',
             'verifier_assigned' => 'Assign Verifier',
             'verifier_assignment_saved' => 'Simpan Penugasan Verifier',
             'work_reported_completed' => 'Lapor Pekerjaan Selesai',
+            'block_deadline_updated' => 'Update Deadline Blok',
+            'block_completion_updated' => 'Update Status Selesai Blok',
             'verification_cycle_reset' => 'Reset Siklus Verifikasi',
             'verifier_decision_recorded' => 'Keputusan Verifier',
             'submission_marked_revision_required' => 'Status Jadi Butuh Revisi',
             'submission_marked_verified' => 'Status Jadi Terverifikasi',
-            'block_progress_updated' => 'Update Progres Blok',
         ];
         $importantQcHistoryLogs = $uspk->qcVerificationLogs
             ->filter(function ($log) {
@@ -55,11 +56,13 @@
             : 'Menunggu Laporan Pekerjaan Selesai';
 
         $currentUserQcVerification = $uspk->qcVerifications->firstWhere('user_id', auth()->id());
-        $canAssignQcVerifiers = $isQcCoordinator && $uspk->hasSubmitterSignedSpkDocument();
-        $canReportWorkCompleted = ($isSubmitter || $isSasAdmin)
-            && $uspk->hasSubmitterSignedSpkDocument()
-            && !$uspk->work_reported_completed_at;
-        $canVerifyQc = $currentUserQcVerification
+        $hasSubmitterSignedSpk = $uspk->hasSubmitterSignedSpkDocument();
+        $canAssignQcVerifiers = ($isQcCoordinator || $isSasAdmin) && $hasSubmitterSignedSpk;
+        
+        $hasActedVerifier = $uspk->qcVerifications->contains(fn($v) => (string) $v->status !== \Modules\ServiceAgreementSystem\Models\UspkQcVerification::STATUS_PENDING);
+        $disableVerifierEdit = $hasActedVerifier && !$isSasAdmin; // Only admins can bypass this restriction if needed computationally, but controller blocks it generally.
+        
+        $canVerifyQc = ($currentUserQcVerification || $isSasAdmin)
             && $qcStatus === \Modules\ServiceAgreementSystem\Models\UspkSubmission::QC_STATUS_IN_VERIFICATION;
 
         $uspkBlocks = $uspk->blocks;
@@ -93,9 +96,15 @@
                 && $progress->deadline_at->gte($today)
                 && $progress->deadline_at->lte($today->copy()->addDays(3));
         })->count();
-        $canManageBlockProgress = ($isSubmitter || $isSasAdmin || $isQcCoordinator)
+        $canManageBlockDeadlines = $isQcCoordinator || $isSasAdmin;
+        $canManageBlockCompletion = ($isSubmitter || $isSasAdmin)
             && $uspk->hasSubmitterSignedSpkDocument()
             && $totalBlocks > 0;
+        $canReportWorkCompleted = ($isSubmitter || $isSasAdmin)
+            && $uspk->hasSubmitterSignedSpkDocument()
+            && !$uspk->work_reported_completed_at
+            && $totalBlocks > 0
+            && $completedBlocks === $totalBlocks;
 
         $assignableQcUsers = $canAssignQcVerifiers
             ? \App\Models\User::query()
@@ -122,6 +131,19 @@
             ->first();
         $winnerTender = $winnerFromFinalVote?->voteTender ?: $uspk->tenders->firstWhere('is_selected', true);
         $winnerTenderId = (int) ($winnerTender->id ?? 0);
+        
+        $highestActiveApproval = $approvals->filter(fn($a) => in_array($a->status, ['approved', 'rejected', 'on_hold']))->sortByDesc('level')->first();
+        $canRollbackApproval = false;
+        if ($highestActiveApproval) {
+            $isOwner = (int) $highestActiveApproval->user_id === (int) auth()->id();
+            if ($isSasAdmin || $isOwner) {
+                // Determine if owner is currently blocked because a higher level has acted
+                $higherLevelActed = $approvals->contains(fn($a) => $a->level > $highestActiveApproval->level && $a->status !== 'pending');
+                if (!$higherLevelActed || $isSasAdmin) {
+                    $canRollbackApproval = true;
+                }
+            }
+        }
     @endphp
 
     @push('actions')
@@ -404,6 +426,34 @@
                         </div>
                     </div>
                 </div>
+
+                @if(!$uspk->hasSubmitterSignedSpkDocument())
+                    <div class="card mb-4" style="border: 1px solid #bfdbfe; border-radius: 12px; background: #f8fbff;">
+                        <div class="card-body" style="padding: 16px;">
+                            <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 700; color: #1e3a8a;">Upload SPK Bertanda Tangan Pengaju</h4>
+                            <p class="text-muted" style="font-size: 12px; margin-bottom: 12px;">
+                                Langkah ini wajib dilakukan setelah SPK Final dari Legal terbit, agar proses QC bisa dimulai.
+                            </p>
+
+                            @if($canUploadSignedSpk)
+                                <form action="{{ route('sas.uspk-qc.upload-signed', $uspk) }}" method="POST" enctype="multipart/form-data">
+                                    @csrf
+                                    <div class="form-group mb-3">
+                                        <label class="input-label">File SPK dengan TTD (PDF/DOC/DOCX)</label>
+                                        <input type="file" name="signed_spk_document" class="form-control" accept=".pdf,.doc,.docx" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary action-btn">
+                                        <i class="fas fa-file-signature"></i> Upload SPK dengan TTD 
+                                    </button>
+                                </form>
+                            @else
+                                <div class="alert" style="margin: 0; padding: 10px 12px; border-radius: 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; font-size: 12px;">
+                                    Mode baca. Upload SPK TTD hanya bisa dilakukan oleh <strong>pengaju USPK</strong> atau <strong>admin</strong>.
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                @endif
             @else
                 <div class="alert-card mb-4">
                     <div class="card-body">
@@ -415,58 +465,6 @@
                 </div>
             @endif
 
-            @if($canProcessLegal)
-            <div class="bottom-split-grid" style="grid-template-columns: 1.2fr 0.8fr; gap: 16px;">
-                <div class="card" style="border: 1px solid var(--border-color); border-radius: 12px;">
-                    <div class="card-body" style="padding: 16px;">
-                        <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 700;">Upload SPK Final Dari Legal</h4>
-                        <form action="{{ route('sas.uspk-legal.upload', $uspk) }}" method="POST" enctype="multipart/form-data">
-                            @csrf
-                            <div class="form-group mb-3">
-                                <label class="input-label">File SPK Final (PDF/DOC/DOCX)</label>
-                                <input type="file" name="spk_document" class="form-control" accept=".pdf,.doc,.docx" required>
-                            </div>
-                            <div class="form-group mb-3">
-                                <label class="input-label">Catatan Legal (Opsional)</label>
-                                <textarea name="legal_spk_notes" class="form-control custom-textarea" rows="3" placeholder="Catatan kesepakatan final dengan kontraktor..."></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-success action-btn">
-                                <i class="fas fa-upload"></i> Upload SPK Final
-                            </button>
-                        </form>
-                    </div>
-                </div>
-
-                <div class="card" style="border: 1px solid #fecaca; border-radius: 12px;">
-                    <div class="card-body" style="padding: 16px;">
-                        <h4 style="margin: 0 0 8px; font-size: 14px; font-weight: 700; color: #b91c1c;">Kembalikan ke Pemilihan</h4>
-                        <p class="text-muted" style="font-size: 12px; margin-bottom: 12px;">Gunakan jika hasil nego/legal belum final dan perlu voting ulang approver final.</p>
-                        <form action="{{ route('sas.uspk-legal.return', $uspk) }}" method="POST" onsubmit="return confirm('Kembalikan proses ke pemilihan kontraktor oleh approver final?')">
-                            @csrf
-                            <div class="form-group mb-3">
-                                <label class="input-label">Alasan Pengembalian</label>
-                                <textarea name="comment" class="form-control custom-textarea" rows="3" placeholder="Tuliskan alasan wajib..." required></textarea>
-                            </div>
-                            <button type="submit" class="btn btn-danger action-btn">
-                                <i class="fas fa-undo"></i> Kembalikan Proses
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            @endif
-        </div>
-    </div>
-    @endif
-
-    @if($uspk->hasFinalSpkDocument() || $uspk->hasSubmitterSignedSpkDocument() || $qcStatus !== '')
-    <div class="card mb-4 modern-card">
-        <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid rgba(0,0,0,0.05);">
-            <div class="card-title" style="font-size: 16px; font-weight: 700;">
-                <i class="fas fa-clipboard-check" style="color: var(--info); margin-right: 8px;"></i> Proses QC USPK
-            </div>
-        </div>
-        <div class="card-body" style="padding: 24px;">
             @if($uspk->hasSubmitterSignedSpkDocument())
                 <div class="alert-card mb-3">
                     <div class="card-body">
@@ -478,28 +476,93 @@
                             @endif.
                             <div class="mt-2">
                                 <a href="{{ asset('storage/' . $uspk->submitter_signed_spk_document_path) }}" target="_blank" class="attachment-btn">
-                                    <i class="fas fa-download"></i> Lihat SPK TTD Pengaju
+                                    <i class="fas fa-download"></i> Lihat SPK dengan TTD
                                 </a>
                             </div>
                         </div>
                     </div>
                 </div>
-            @endif
-
-            <div class="qc-split-grid">
-                <details class="qc-collapsible" open>
-                    <summary class="qc-collapsible-summary">
-                        <span class="badge {{ $qcAssignmentBadgeClass }}">{{ $qcAssignmentBadgeText }}</span>
-                        <span class="qc-summary-text">Penugasan verifier bisa dikerjakan tanpa menunggu laporan selesai.</span>
-                    </summary>
-                    <div class="qc-collapsible-body">
-                        <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-                            @if($uspk->qcAssigner)
-                                <span style="font-size: 12px; color: var(--text-muted);">Ditugaskan oleh {{ $uspk->qcAssigner->name }}{{ $uspk->qc_assigned_at ? ' (' . $uspk->qc_assigned_at->format('d M Y H:i') . ')' : '' }}</span>
-                            @else
-                                <span style="font-size: 12px; color: var(--text-muted);">Belum ada verifier yang ditetapkan.</span>
-                            @endif
+            @elseif($uspk->hasFinalSpkDocument())
+                <div class="alert-card mb-3" style="border: 1px solid #fde68a; background: #fffbeb;">
+                    <div class="card-body">
+                        <i class="fas fa-exclamation-triangle info-icon" style="color: #b45309;"></i>
+                        <div class="info-text" style="color: #78350f;">
+                            <strong>SPK bertanda tangan pengaju belum diunggah.</strong>
+                            Dokumen yang sudah ada saat ini adalah <strong>SPK Final dari Legal</strong>.
+                            Tahap QC (penugasan verifier dan update progress) baru aktif setelah pengaju upload SPK TTD.
                         </div>
+                    </div>
+                </div>
+            @endif
+        </div>
+
+        @if($canProcessLegal)
+        <div class="bottom-split-grid" style="grid-template-columns: 1.2fr 0.8fr; gap: 16px;">
+            <div class="card" style="border: 1px solid var(--border-color); border-radius: 12px;">
+                <div class="card-body" style="padding: 16px;">
+                    <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 700;">Upload SPK Final Dari Legal</h4>
+                    <form action="{{ route('sas.uspk-legal.upload', $uspk) }}" method="POST" enctype="multipart/form-data">
+                        @csrf
+                        <div class="form-group mb-3">
+                            <label class="input-label">File SPK Final (PDF/DOC/DOCX)</label>
+                            <input type="file" name="spk_document" class="form-control" accept=".pdf,.doc,.docx" required>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="input-label">Catatan Legal (Opsional)</label>
+                            <textarea name="legal_spk_notes" class="form-control custom-textarea" rows="3" placeholder="Catatan kesepakatan final dengan kontraktor..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-success action-btn">
+                            <i class="fas fa-upload"></i> Upload SPK Final
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card" style="border: 1px solid #fecaca; border-radius: 12px;">
+                <div class="card-body" style="padding: 16px;">
+                    <h4 style="margin: 0 0 8px; font-size: 14px; font-weight: 700; color: #b91c1c;">Kembalikan ke Pemilihan</h4>
+                    <p class="text-muted" style="font-size: 12px; margin-bottom: 12px;">Gunakan jika hasil nego/legal belum final dan perlu voting ulang approver final.</p>
+                    <form action="{{ route('sas.uspk-legal.return', $uspk) }}" method="POST" onsubmit="return confirm('Kembalikan proses ke pemilihan kontraktor oleh approver final?')">
+                        @csrf
+                        <div class="form-group mb-3">
+                            <label class="input-label">Alasan Pengembalian</label>
+                            <textarea name="comment" class="form-control custom-textarea" rows="3" placeholder="Tuliskan alasan wajib..." required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-danger action-btn">
+                            <i class="fas fa-undo"></i> Kembalikan Proses
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        @endif
+
+    </div>
+    @endif
+
+    @if($uspk->hasFinalSpkDocument() || $uspk->hasSubmitterSignedSpkDocument() || $qcStatus !== '')
+    <div class="card mb-4 modern-card">
+        <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid rgba(0,0,0,0.05);">
+            <div class="card-title" style="font-size: 16px; font-weight: 700;">
+                <i class="fas fa-clipboard-check" style="color: var(--info); margin-right: 8px;"></i> Proses QC USPK
+            </div>
+        </div>
+        <div class="card-body" style="padding: 24px;">
+
+            <!-- Stack Form Vertically instead of split grids -->
+            <div class="vertical-stack" style="display: flex; flex-direction: column; gap: 24px;">
+                
+                {{-- STEP 2 SECTION --}}
+                <div class="qc-section">
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
+                        <span class="badge {{ $qcAssignmentBadgeClass }}" style="font-size: 13px;">{{ $qcAssignmentBadgeText }}</span>
+                        <h4 style="margin: 0; font-size: 16px; font-weight: 800; color: var(--text-primary);">Penugasan Tim Verifikasi <span class="text-muted" style="font-weight: 600; font-size: 13px; margin-left: 6px;">(Tahap 2)</span></h4>
+                    </div>
+                    @if($uspk->qcAssigner)
+                        <div style="margin-bottom: 12px; font-size: 12px; color: var(--text-muted);">
+                            <i class="fas fa-check-circle text-success mx-1"></i> Ditugaskan oleh {{ $uspk->qcAssigner->name }}{{ $uspk->qc_assigned_at ? ' (' . $uspk->qc_assigned_at->format('d M Y H:i') . ')' : '' }}
+                        </div>
+                    @endif
 
                         @if($canAssignQcVerifiers)
                             <div class="card" style="border: 1px solid var(--border-color); border-radius: 12px;">
@@ -509,21 +572,46 @@
                                         @csrf
                                         <div class="form-group mb-3">
                                             <label class="input-label">Pilih User Verifier (bisa lebih dari satu)</label>
-                                            <select name="verifier_ids[]" class="form-control" multiple required style="min-height: 140px;">
+                                            <select name="verifier_ids[]" class="form-control select2-searchable" multiple required style="min-height: 140px;" {{ $disableVerifierEdit ? 'disabled' : '' }}>
                                                 @foreach($assignableQcUsers as $qcUser)
                                                     <option value="{{ $qcUser->id }}" {{ $uspk->qcVerifications->contains('user_id', $qcUser->id) ? 'selected' : '' }}>
                                                         {{ $qcUser->name }}{{ $qcUser->position ? ' - ' . $qcUser->position : '' }}
                                                     </option>
                                                 @endforeach
                                             </select>
+                                            @if($disableVerifierEdit)
+                                                <div class="text-danger mt-2" style="font-size: 12px; font-weight: 500;"><i class="fas fa-exclamation-circle"></i> Verifier tidak dapat diubah karena salah satu verifier telah memberikan keputusan.</div>
+                                            @endif
                                         </div>
+                                        @if(!$disableVerifierEdit)
                                         <button type="submit" class="btn btn-primary action-btn">
                                             <i class="fas fa-user-check"></i> Simpan Penugasan Verifier
                                         </button>
+                                        @endif
                                     </form>
                                 </div>
                             </div>
+                        @elseif($uspk->qcVerifications->isEmpty() && !$hasSubmitterSignedSpk)
+                            <div class="card" style="border: 1px solid #fde68a; border-radius: 12px; background: #fffbeb;">
+                                <div class="card-body" style="padding: 16px; text-align: center;">
+                                    <i class="fas fa-file-signature" style="font-size: 24px; color: #b45309; margin-bottom: 8px; display: block;"></i>
+                                    <p style="margin: 0; color: #78350f; font-size: 12px;">
+                                        Penugasan verifier belum bisa dilakukan karena SPK bertanda tangan pengaju belum diunggah.
+                                    </p>
+                                </div>
+                            </div>
+                        @elseif(!$canAssignQcVerifiers && $uspk->qcVerifications->isEmpty())
+                            <div class="card" style="border: 1px solid #fecaca; border-radius: 12px; background: #fef2f2;">
+                                <div class="card-body" style="padding: 16px; text-align: center;">
+                                    <i class="fas fa-lock" style="font-size: 24px; color: #b91c1c; margin-bottom: 8px; display: block;"></i>
+                                    <p style="margin: 0; color: #7f1d1d; font-size: 12px;">
+                                        Mode baca. Hanya role QC Coordinator atau Admin yang bisa menambah verifier.
+                                    </p>
+                                </div>
+                            </div>
                         @endif
+
+                        <!-- Deleted redundant deadline module -->
 
                         @if($uspk->qcVerifications->isNotEmpty())
                             <div class="card" style="border: 1px solid var(--border-color); border-radius: 12px; margin-top: 12px;">
@@ -551,17 +639,22 @@
                             </div>
                         @endif
                     </div>
-                </details>
+                {{-- END STEP 2 SECTION --}}
 
-                <details class="qc-collapsible" open>
-                    <summary class="qc-collapsible-summary">
-                        <span class="badge {{ $qcReportBadgeClass }}">{{ $qcReportBadgeText }}</span>
-                        <span class="qc-summary-text">Laporan pekerjaan selesai bisa dibuat sebelum atau sesudah verifier ditetapkan.</span>
-                    </summary>
-                    <div class="qc-collapsible-body">
+                {{-- STEP 3 SECTION --}}
+                <div class="qc-section">
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; margin-top: 16px;">
+                        <span class="badge {{ $qcReportBadgeClass }}" style="font-size: 13px;">{{ $qcReportBadgeText }}</span>
+                        <h4 style="margin: 0; font-size: 16px; font-weight: 800; color: var(--text-primary);">Progress Pelaksanaan & Laporan <span class="text-muted" style="font-weight: 600; font-size: 13px; margin-left: 6px;">(Tahap 3)</span></h4>
+                    </div>
+
                         @if($uspk->work_reported_completed_at)
                             <div style="margin-bottom: 12px; color: var(--text-muted); font-size: 12px;">
-                                Dilaporkan selesai pada <strong>{{ $uspk->work_reported_completed_at->format('d M Y H:i') }}</strong>
+                                ✓ Dilaporkan selesai pada <strong>{{ $uspk->work_reported_completed_at->format('d M Y H:i') }}</strong>
+                            </div>
+                        @else
+                            <div style="margin-bottom: 12px; padding: 10px 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 12px; color: #166534; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-info-circle"></i> Belum dilaporkan selesai
                             </div>
                         @endif
 
@@ -585,7 +678,22 @@
                                         <div class="block-progress-bar-fill" style="width: {{ $blockProgressPercent }}%;"></div>
                                     </div>
 
-                                    @if($canManageBlockProgress)
+                                    @if($canManageBlockCompletion || $canManageBlockDeadlines)
+                                        @if($canManageBlockDeadlines)
+                                        <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px dashed #cbd5e1; margin-top: 12px; margin-bottom: 12px; display: inline-flex; align-items: center; gap: 12px;">
+                                            <span style="font-size: 12px; font-weight: 600; color: #475569;">Set Deadline Semua Blok:</span>
+                                            <input type="date" id="global_deadline_setter" class="form-control" style="width: auto; padding: 6px 10px; font-size: 12px;">
+                                            <button type="button" class="btn btn-secondary action-btn" onclick="applyGlobalDeadline()" style="font-size: 12px; padding: 6px 12px;">
+                                                <i class="fas fa-check"></i> Terapkan
+                                            </button>
+                                            <script>
+                                                function applyGlobalDeadline() {
+                                                    const val = document.getElementById('global_deadline_setter').value;
+                                                    if(val) document.querySelectorAll('.block-deadline-input').forEach(i => i.value = val);
+                                                }
+                                            </script>
+                                        </div>
+                                        @endif
                                         <form action="{{ route('sas.uspk-qc.block-progress', $uspk) }}" method="POST" style="margin-top: 12px;">
                                             @csrf
                                             <div class="table-wrapper">
@@ -615,27 +723,58 @@
                                                                     @endif
                                                                 </td>
                                                                 <td>
-                                                                    <input type="date" name="deadline_at[{{ $block->id }}]" value="{{ $deadlineDate }}" class="form-control" style="min-width: 150px;">
+                                                                    @if($canManageBlockDeadlines)
+                                                                        <input type="date" name="deadline_at[{{ $block->id }}]" value="{{ $deadlineDate }}" class="form-control block-deadline-input" style="min-width: 130px; font-size: 12px; padding: 8px;">
+                                                                    @else
+                                                                        <span style="font-size: 12px;">{{ optional(optional($progress)->deadline_at)->format('d M Y') ?? '-' }}</span>
+                                                                    @endif
                                                                 </td>
                                                                 <td>
-                                                                    <label style="display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 600;">
-                                                                        <input type="checkbox" name="completed_blocks[]" value="{{ $block->id }}" {{ $isCompleted ? 'checked' : '' }}>
-                                                                        Selesai
-                                                                    </label>
+                                                                    @if($canManageBlockCompletion)
+                                                                        <label style="display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 600;">
+                                                                            <input type="checkbox" name="completed_blocks[]" value="{{ $block->id }}" {{ $isCompleted ? 'checked' : '' }}>
+                                                                            Selesai
+                                                                        </label>
+                                                                    @else
+                                                                        <span class="badge {{ $isCompleted ? 'badge-approved' : 'badge-pending_assignment' }}">
+                                                                            {{ $isCompleted ? 'Selesai' : 'Belum Selesai' }}
+                                                                        </span>
+                                                                    @endif
                                                                 </td>
-                                                                <td>{{ optional(optional($progress)->completed_at)->format('d M Y H:i') ?? '-' }}</td>
-                                                                <td>{{ optional(optional($progress)->completedBy)->name ?? '-' }}</td>
+                                                                <td style="font-size: 12px;">{{ optional(optional($progress)->completed_at)->format('d M Y H:i') ?? '-' }}</td>
+                                                                <td style="font-size: 12px;">{{ optional(optional($progress)->completedBy)->name ?? '-' }}</td>
                                                             </tr>
                                                         @endforeach
                                                     </tbody>
                                                 </table>
                                             </div>
-                                            <p class="text-muted" style="font-size: 12px; margin: 10px 0 0;">Deadline per blok ini disiapkan sebagai dasar pengingat otomatis saat fitur notifikasi diaktifkan.</p>
-                                            <button type="submit" class="btn btn-primary action-btn" style="margin-top: 10px;">
-                                                <i class="fas fa-save"></i> Simpan Progress Blok
-                                            </button>
+                                            <p class="text-muted" style="font-size: 12px; margin: 10px 0 0;">Data blok diisi secara kolektif berdasakan akses peran Anda.</p>
+                                            <div style="display: flex; gap: 12px; align-items: center; margin-top: 10px; flex-wrap: wrap;">
+                                                <button type="submit" class="btn btn-primary action-btn">
+                                                    <i class="fas fa-save"></i> Simpan Data Blok
+                                                </button>
+                                                
+                                                @if($canReportWorkCompleted)
+                                                    <a href="#" onclick="event.preventDefault(); document.getElementById('report-completed-form').submit();" class="btn btn-success action-btn" style="background-color: var(--success); color: white; border-color: var(--success);">
+                                                        <i class="fas fa-flag-checkered"></i> Laporkan Pekerjaan Selesai
+                                                    </a>
+                                                @elseif(!$uspk->work_reported_completed_at && $totalBlocks > 0 && $completedBlocks < $totalBlocks)
+                                                    <span style="font-size: 12px; color: #9a3412; font-weight: 600; padding: 8px 12px; border-radius: 8px; background: #fff7ed; border: 1px dashed #fed7aa;">
+                                                        <i class="fas fa-info-circle"></i> Selesaikan ke-{{ $totalBlocks }} blok untuk menyelesaikan
+                                                    </span>
+                                                @endif
+                                            </div>
                                         </form>
+                                        
+                                        @if($canReportWorkCompleted)
+                                        <form id="report-completed-form" action="{{ route('sas.uspk-qc.report-completed', $uspk) }}" method="POST" style="display: none;" onsubmit="return confirm('Lanjut kirim laporan pekerjaan selesai untuk proses verifikasi QC?')">
+                                            @csrf
+                                        </form>
+                                        @endif
                                     @else
+                                        <div class="alert" style="margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #fef3c7; border: 1px solid #fde68a; color: #78350f; font-size: 12px;">
+                                            Mode baca: Data blok belum ada atau tidak dapat Anda ubah.
+                                        </div>
                                         <div class="table-wrapper" style="margin-top: 12px;">
                                             <table>
                                                 <thead>
@@ -669,64 +808,20 @@
                                     @endif
                                 </div>
                             </div>
-                        @endif
-
-                        @if($importantQcHistoryLogs->isNotEmpty())
-                            <div class="card" style="border: 1px solid var(--border-color); border-radius: 12px;">
-                                <div class="card-body" style="padding: 16px;">
-                                    <h4 style="margin: 0 0 10px; font-size: 14px; font-weight: 700;">Riwayat Proses QC (Permanen)</h4>
-                                    <p class="text-muted" style="font-size: 12px; margin-bottom: 10px;">Catatan ini bersifat append-only, sehingga histori reject/approve antar bulan tidak tertimpa.</p>
-                                    <div class="table-wrapper">
-                                        <table>
-                                            <thead>
-                                                <tr>
-                                                    <th>Waktu</th>
-                                                    <th>Aksi</th>
-                                                    <th>Pelaksana</th>
-                                                    <th>Status</th>
-                                                    <th>Catatan</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach($importantQcHistoryLogs as $qcLog)
-                                                    <tr>
-                                                        <td>{{ optional($qcLog->created_at)->format('d M Y H:i') ?? '-' }}</td>
-                                                        <td>
-                                                            <div style="font-weight: 600; color: var(--text-primary);">
-                                                                {{ $qcHistoryActionLabels[$qcLog->action] ?? ucfirst(str_replace('_', ' ', (string) $qcLog->action)) }}
-                                                            </div>
-                                                            @if((string) $qcLog->action === 'verifier_decision_recorded' && $qcLog->verification && $qcLog->verification->verifier)
-                                                                <small style="color: var(--text-muted);">Verifier: {{ $qcLog->verification->verifier->name }}</small>
-                                                            @endif
-                                                        </td>
-                                                        <td>{{ $qcLog->actor->name ?? '-' }}</td>
-                                                        <td>
-                                                            @if($qcLog->status_before || $qcLog->status_after)
-                                                                <span class="badge" style="background: #f8fafc; color: #334155; border: 1px solid #cbd5e1;">
-                                                                    {{ $qcLog->status_before ?: '-' }} -> {{ $qcLog->status_after ?: '-' }}
-                                                                </span>
-                                                            @else
-                                                                -
-                                                            @endif
-                                                        </td>
-                                                        <td>{{ $qcLog->comment ?: '-' }}</td>
-                                                    </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table>
-                                    </div>
+                        @else
+                            <div class="card" style="border: 1px solid #fee2e2; border-radius: 12px; background: #fef2f2; margin-bottom: 12px;">
+                                <div class="card-body" style="padding: 16px; text-align: center;">
+                                    <i class="fas fa-inbox" style="font-size: 24px; color: #b91c1c; margin-bottom: 8px; display: block;"></i>
+                                    <p style="margin: 0; color: #7f1d1d; font-size: 12px;">
+                                        Belum ada blok dalam SPK ini. Silakan atur blok dan deadline di bagian atas.
+                                    </p>
                                 </div>
                             </div>
                         @endif
 
-                        @if($canReportWorkCompleted)
-                            <form action="{{ route('sas.uspk-qc.report-completed', $uspk) }}" method="POST" onsubmit="return confirm('Lanjut kirim laporan pekerjaan selesai untuk proses verifikasi QC?')" style="margin-top: 12px;">
-                                @csrf
-                                <button type="submit" class="btn btn-primary action-btn">
-                                    <i class="fas fa-flag-checkered"></i> Laporkan Pekerjaan Selesai
-                                </button>
-                            </form>
-                        @endif
+                        <!-- Riwayat Proses QC dipindahkan ke layout bawah -->
+
+                        <!-- Moved Laporkan Pekerjaan Selesai into table -->
 
                         @if($canVerifyQc)
                             <div class="card" style="border: 1px solid var(--border-color); border-radius: 12px; margin-top: 12px;">
@@ -750,17 +845,25 @@
                                 </div>
                             </div>
                         @endif
-                    </div>
-                </details>
+                </div>
+                {{-- END STEP 3 SECTION --}}
             </div>
         </div>
     </div>
     @endif
 
     @php
-        $currentApproval = $uspk->approvals->first(function ($approval) {
-            return in_array($approval->status, ['pending', 'on_hold'], true);
-        });
+        // Hierarchical approval: Only the minimum level with pending/on_hold status is active.
+        // Higher levels cannot act until their preceding level is completed (approved/rejected).
+        $minPendingLevel = $uspk->approvals
+            ->whereIn('status', ['pending', 'on_hold'])
+            ->min('level');
+        
+        // Get approval at the active (minimum) level
+        $currentApproval = $minPendingLevel !== null 
+            ? $uspk->approvals->firstWhere('level', $minPendingLevel) 
+            : null;
+        
         $currentStepAssignee = null;
         if ($currentApproval) {
             $step = optional($currentApproval->schema)->steps?->firstWhere('level', $currentApproval->level);
@@ -771,14 +874,21 @@
         $actionableApproval = $isApprovalActionAllowed ? $currentApproval : null;
         $maxApprovalLevel = $uspk->approvals->max('level');
         $isFinalApprovalLevel = $actionableApproval && (int) $actionableApproval->level === (int) $maxApprovalLevel;
+
+        $rolledBackApproval = $isSasAdmin
+            ? $uspk->approvals
+                ->whereIn('status', ['approved', 'rejected', 'on_hold'])
+                ->sortByDesc('approved_at')
+                ->first()
+            : null;
     @endphp
 
-    {{-- Layout Split: Form di Kiri, Timeline di Kanan --}}
-    <div class="bottom-split-grid mb-4">
-        
-        {{-- KOLOM KIRI: Approval Actions --}}
-        <div class="action-column">
-            @if($uspk->approvals->count() > 0)
+
+    {{-- Keputusan Anda Form --}}
+    <div class="approval-action-wrapper mb-4">
+        @if($uspk->approvals->count() > 0)
+
+
                 @if($actionableApproval)
                 <div class="card modern-card highlight-card">
                     <div class="card-body p-4">
@@ -830,6 +940,8 @@
                 </div>
                 @endif
 
+                <!-- Rollback button moved to right column header -->
+
                 @if(!$actionableApproval && $currentApproval)
                 <div class="card alert-card">
                     <div class="card-body">
@@ -850,15 +962,79 @@
                     </div>
                 </div>
             @endif
+    </div>
+
+    {{-- Layout Split: Riwayat QC di Kiri, Riwayat Approval di Kanan --}}
+    <div class="bottom-split-grid mb-4">
+        
+        {{-- KOLOM KIRI: Riwayat Proses QC --}}
+        <div class="history-column-qc">
+            <div class="card modern-card" style="height: 100%;">
+                <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid rgba(0,0,0,0.05);">
+                    <div class="card-title" style="font-size: 16px; font-weight: 700;">
+                        <i class="fas fa-tasks text-primary" style="margin-right: 8px;"></i> Riwayat Proses QC (Permanen)
+                    </div>
+                </div>
+                <div class="card-body p-4">
+                    @if($importantQcHistoryLogs->isNotEmpty())
+                        <div class="modern-timeline">
+                            @foreach($importantQcHistoryLogs as $qcLog)
+                            <div class="timeline-item">
+                                <div class="timeline-marker" style="background:#475569;"></div>
+                                <div class="timeline-content">
+                                    <div class="timeline-header">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="timeline-name">{{ $qcLog->actor->name ?? '-' }}</span>
+                                            <span class="badge" style="background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 700;">
+                                                {{ $qcHistoryActionLabels[$qcLog->action] ?? ucfirst(str_replace('_', ' ', (string) $qcLog->action)) }}
+                                            </span>
+                                        </div>
+                                        <span class="timeline-date">
+                                            <i class="far fa-clock"></i> {{ optional($qcLog->created_at)->format('d M Y H:i') ?? '-' }}
+                                        </span>
+                                    </div>
+                                    @if((string) $qcLog->action === 'verifier_decision_recorded' && $qcLog->verification && $qcLog->verification->verifier)
+                                        <div class="timeline-role mt-1" style="font-size: 11px;">Verifier: <strong>{{ $qcLog->verification->verifier->name }}</strong></div>
+                                    @endif
+                                    @if($qcLog->status_before || $qcLog->status_after)
+                                        <div class="timeline-role mt-1" style="font-size: 11px;">Siklus: <span style="font-weight: 600;">{{ $qcLog->status_before ?: '-' }} <i class="fas fa-arrow-right mx-1" style="color:var(--text-muted); font-size:10px;"></i> {{ $qcLog->status_after ?: '-' }}</span></div>
+                                    @endif
+                                    @if($qcLog->comment)
+                                        <div class="timeline-comment mt-2">
+                                            <i class="fas fa-quote-left quote-icon"></i>
+                                            {{ $qcLog->comment }}
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="empty-state" style="padding: 20px;">
+                            <i class="fas fa-inbox empty-icon" style="font-size: 30px;"></i>
+                            <p style="font-size: 13px;">Belum ada riwayat QC.</p>
+                        </div>
+                    @endif
+                </div>
+            </div>
         </div>
 
         {{-- KOLOM KANAN: Approval Timeline --}}
         <div class="history-column">
             <div class="card modern-card" style="height: 100%;">
-                <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid rgba(0,0,0,0.05);">
-                    <div class="card-title" style="font-size: 16px; font-weight: 700;">
+                <div class="card-header" style="padding: 20px 24px; border-bottom: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
+                    <div class="card-title" style="font-size: 16px; font-weight: 700; margin: 0;">
                         <i class="fas fa-history text-success" style="margin-right: 8px;"></i> Riwayat Jenjang Approval
                     </div>
+                    @if($canRollbackApproval && $highestActiveApproval)
+                        <form action="{{ route('sas.uspk.rollback-approval', $uspk) }}" method="POST" onsubmit="return confirm('Yakin ingin merubah keputusan pada level {{ $highestActiveApproval->level }}? Keputusan Anda akan dikembalikan ke status Pending.');" style="margin: 0;">
+                            @csrf
+                            <input type="hidden" name="approval_id" value="{{ $highestActiveApproval->id }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger shadow-sm" title="Ubah Keputusan Level {{ $highestActiveApproval->level }}" style="border-radius: 6px; font-size: 12px; font-weight: 700; padding: 6px 12px; color: #dc3545; border-color: #dc3545;">
+                                <i class="fas fa-undo"></i> Ubah Keputusan
+                            </button>
+                        </form>
+                    @endif
                 </div>
                 <div class="card-body p-4">
                     @if($uspk->approvals->count() > 0)

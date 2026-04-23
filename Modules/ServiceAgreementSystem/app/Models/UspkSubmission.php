@@ -24,6 +24,7 @@ class UspkSubmission extends Model
         'sub_department_id',
         'block_id',
         'block_ids',
+        'uspk_bapp_id',
         'job_id',
         'uspk_budget_activity_id',
         'estimated_value',
@@ -60,6 +61,7 @@ class UspkSubmission extends Model
     const STATUS_IN_REVIEW = 'in_review';
     const STATUS_APPROVED = 'approved';
     const STATUS_REJECTED = 'rejected';
+    const STATUS_COMPLETED = 'completed';
 
     // QC flow status constants
     const QC_STATUS_PENDING_ASSIGNMENT = 'pending_assignment';
@@ -143,6 +145,11 @@ class UspkSubmission extends Model
     public function tenders(): HasMany
     {
         return $this->hasMany(UspkTender::class);
+    }
+
+    public function bapp(): BelongsTo
+    {
+        return $this->belongsTo(UspkBapp::class, 'uspk_bapp_id');
     }
 
     public function selectedTender(): HasOne

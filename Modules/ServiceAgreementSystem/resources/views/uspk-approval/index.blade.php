@@ -70,7 +70,11 @@
 
                     <div class="budget-highlight">
                         <span class="text-muted">Estimasi Nilai</span>
-                        <strong class="font-monospace">Rp {{ number_format($uspk->estimated_value, 0, ',', '.') }}</strong>
+                        @if((float) $uspk->estimated_value > 0)
+                            <strong class="font-monospace">Rp {{ number_format($uspk->estimated_value, 0, ',', '.') }}</strong>
+                        @else
+                            <strong class="text-muted">-</strong>
+                        @endif
                     </div>
 
                     <div class="card-actions mt-auto">

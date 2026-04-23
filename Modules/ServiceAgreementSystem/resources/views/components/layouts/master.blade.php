@@ -852,19 +852,14 @@
                     <i class="fas fa-wallet"></i> Budget USPK
                 </a>
                 @endif
-                @if($canApproveUspk)
-                <a href="{{ route('sas.uspk-approvals.index') }}" class="sidebar-link {{ request()->routeIs('sas.uspk-approvals.*') ? 'active' : '' }}">
-                    <i class="fas fa-check-double"></i> Persetujuan Saya
+                
+                <a href="{{ route('sas.tasks.index') }}" class="sidebar-link {{ request()->routeIs('sas.tasks.*') ? 'active' : '' }}">
+                    <i class="fas fa-inbox"></i> Tugas & Persetujuan
                 </a>
-                @endif
-                @if($canReviewLegal)
-                <a href="{{ route('sas.uspk-legal.index') }}" class="sidebar-link {{ request()->routeIs('sas.uspk-legal.*') ? 'active' : '' }}">
-                    <i class="fas fa-balance-scale"></i> Review Legal SPK
-                </a>
-                @endif
-                @if($canProcessQc)
-                <a href="{{ route('sas.uspk-qc.index') }}" class="sidebar-link {{ request()->routeIs('sas.uspk-qc.*') ? 'active' : '' }}">
-                    <i class="fas fa-clipboard-check"></i> Proses QC SPK
+
+                @if($isSasStaff || $isSasAdmin)
+                <a href="{{ route('sas.bapp.index') }}" class="sidebar-link {{ request()->routeIs('sas.bapp.*') ? 'active' : '' }}">
+                    <i class="fas fa-file-invoice-dollar"></i> Manajemen BAPP
                 </a>
                 @endif
             </div>

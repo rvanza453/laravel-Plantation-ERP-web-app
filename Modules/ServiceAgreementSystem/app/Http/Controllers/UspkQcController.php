@@ -127,6 +127,14 @@ class UspkQcController extends Controller
             abort(422, 'Terdapat user verifier yang tidak terdaftar pada modul SAS.');
         }
 
+        $hasActedVerifier = $uspk->qcVerifications()
+            ->where('status', '!=', \Modules\ServiceAgreementSystem\Models\UspkQcVerification::STATUS_PENDING)
+            ->exists();
+
+        if ($hasActedVerifier && !$this->isSasAdmin(auth()->user())) {
+            abort(422, 'Daftar Verifier tidak dapat diubah karena sudah ada verifier yang mengambil keputusan.');
+        }
+
         DB::transaction(function () use ($uspk, $verifierIds) {
             $statusBefore = (string) ($uspk->qc_status ?? '');
             $previousAssignments = $uspk->qcVerifications()
@@ -189,6 +197,19 @@ class UspkQcController extends Controller
             abort(422, 'SPK bertanda tangan belum tersedia.');
         }
 
+        $totalBlocks = (int) $uspk->blocks->count();
+        $completedBlocks = $uspk->blockProgresses()
+            ->where('status', UspkBlockProgress::STATUS_COMPLETED)
+            ->count();
+
+        if ($totalBlocks <= 0) {
+            abort(422, 'USPK belum memiliki blok untuk direkap progresnya.');
+        }
+
+        if ($completedBlocks < $totalBlocks) {
+            abort(422, 'Laporan selesai hanya bisa dikirim jika semua blok sudah status selesai.');
+        }
+
         DB::transaction(function () use ($uspk) {
             $statusBefore = (string) ($uspk->qc_status ?? '');
 
@@ -225,10 +246,15 @@ class UspkQcController extends Controller
 
     public function saveBlockProgress(Request $request, UspkSubmission $uspk)
     {
-        $this->authorizeBlockProgressUpdate($uspk);
-
         if (!$uspk->hasSubmitterSignedSpkDocument()) {
-            abort(422, 'SPK bertanda tangan belum tersedia.');
+            abort(422, 'SPK bertanda tangan belum tersedia. Pengaju harus upload SPK bertanda tangan terlebih dahulu.');
+        }
+
+        $canManageBlockDeadlines = $this->isQcCoordinator(auth()->user()) || $this->isSasAdmin(auth()->user());
+        $canManageBlockCompletion = ((int) $uspk->submitted_by === (int) auth()->id() || $this->isSasAdmin(auth()->user()));
+
+        if (!$canManageBlockDeadlines && !$canManageBlockCompletion) {
+            abort(403, 'Akses ditolak. Anda tidak memiliki izin untuk mengurus deadline atau progres blok.');
         }
 
         $availableBlockIds = $uspk->blocks
@@ -238,7 +264,7 @@ class UspkQcController extends Controller
             ->values();
 
         if ($availableBlockIds->isEmpty()) {
-            abort(422, 'USPK ini belum memiliki blok yang dapat dikelola progresnya.');
+            abort(422, 'USPK ini belum memiliki blok untuk dikelola progresnya.');
         }
 
         $validated = $request->validate([
@@ -267,36 +293,45 @@ class UspkQcController extends Controller
             ->unique()
             ->values();
 
-        DB::transaction(function () use ($uspk, $availableBlockIds, $formBlockIds, $completedBlockIds, $validated) {
+        DB::transaction(function () use ($uspk, $availableBlockIds, $formBlockIds, $completedBlockIds, $validated, $canManageBlockDeadlines, $canManageBlockCompletion) {
             $statusBefore = (string) ($uspk->qc_status ?? '');
+            
+            $didUpdateDeadline = false;
+            $didUpdateCompletion = false;
 
             foreach ($availableBlockIds as $blockId) {
                 if (!$formBlockIds->contains($blockId)) {
                     continue;
                 }
 
-                $isCompleted = $completedBlockIds->contains($blockId);
-                $deadlineAt = data_get($validated, 'deadline_at.' . $blockId);
-
                 $progress = $uspk->blockProgresses()->firstOrNew([
                     'block_id' => $blockId,
                 ]);
 
-                $wasCompleted = (string) $progress->status === UspkBlockProgress::STATUS_COMPLETED;
+                if ($canManageBlockDeadlines && array_key_exists('deadline_at', $validated)) {
+                    $deadlineAt = data_get($validated, 'deadline_at.' . $blockId);
+                    $progress->deadline_at = $deadlineAt ?: null;
+                    $didUpdateDeadline = true;
+                }
 
-                $progress->status = $isCompleted
-                    ? UspkBlockProgress::STATUS_COMPLETED
-                    : UspkBlockProgress::STATUS_PENDING;
-                $progress->deadline_at = $deadlineAt ?: null;
+                if ($canManageBlockCompletion && array_key_exists('completed_blocks', $validated)) {
+                    $isCompleted = $completedBlockIds->contains($blockId);
+                    $wasCompleted = (string) $progress->status === UspkBlockProgress::STATUS_COMPLETED;
 
-                if ($isCompleted) {
-                    if (!$wasCompleted) {
-                        $progress->completed_at = now();
-                        $progress->completed_by = auth()->id();
+                    $progress->status = $isCompleted
+                        ? UspkBlockProgress::STATUS_COMPLETED
+                        : UspkBlockProgress::STATUS_PENDING;
+
+                    if ($isCompleted) {
+                        if (!$wasCompleted) {
+                            $progress->completed_at = now();
+                            $progress->completed_by = auth()->id();
+                        }
+                    } else {
+                        $progress->completed_at = null;
+                        $progress->completed_by = null;
                     }
-                } else {
-                    $progress->completed_at = null;
-                    $progress->completed_by = null;
+                    $didUpdateCompletion = true;
                 }
 
                 $progress->save();
@@ -312,13 +347,20 @@ class UspkQcController extends Controller
                 ? (int) round(($completedBlocks / $totalBlocks) * 100)
                 : 0;
 
+            $actionStr = 'block_updated';
+            $commentStr = "Update data blok. ";
+            if($didUpdateDeadline) $commentStr .= "Deadline diperbarui. ";
+            if($didUpdateCompletion) $commentStr .= "Progress: {$completedBlocks}/{$totalBlocks} blok ({$progressPercent}%).";
+
             $this->appendQcLog(
                 submission: $uspk,
-                action: 'block_progress_updated',
+                action: $actionStr,
                 statusBefore: $statusBefore,
                 statusAfter: (string) ($uspk->qc_status ?? ''),
-                comment: "Rekap progres blok diperbarui: {$completedBlocks}/{$totalBlocks} blok ({$progressPercent}%).",
+                comment: trim($commentStr),
                 meta: [
+                    'did_update_deadline' => $didUpdateDeadline,
+                    'did_update_completion' => $didUpdateCompletion,
                     'completed_blocks' => $completedBlocks,
                     'total_blocks' => $totalBlocks,
                     'progress_percent' => $progressPercent,
@@ -326,7 +368,7 @@ class UspkQcController extends Controller
             );
         });
 
-        return redirect()->route('sas.uspk.show', $uspk)->with('success', 'Progres per blok dan deadline berhasil diperbarui.');
+        return redirect()->route('sas.uspk.show', $uspk)->with('success', 'Data status blok berhasil diperbarui.');
     }
 
     public function verifyWork(Request $request, UspkSubmission $uspk)
@@ -340,37 +382,68 @@ class UspkQcController extends Controller
             abort(422, 'Proses QC belum berada di tahap verifikasi.');
         }
 
+        $isAdmin = $this->isSasAdmin(auth()->user());
         $verification = $uspk->qcVerifications()
-            ->where('user_id', auth()->id())
+            ->where('user_id', (int) auth()->id())
             ->first();
 
-        if (!$verification && !$this->isSasAdmin(auth()->user())) {
-            abort(403, 'Anda bukan verifier yang ditugaskan untuk USPK ini.');
+        if ($isAdmin) {
+            $assignedVerifications = $uspk->qcVerifications()
+                ->get(['id', 'user_id', 'status']);
+
+            if ($assignedVerifications->isEmpty()) {
+                abort(422, 'Belum ada verifier QC yang ditugaskan untuk USPK ini.');
+            }
+
+            $statusBeforeSummary = $assignedVerifications
+                ->map(fn ($item) => (string) $item->status)
+                ->unique()
+                ->values()
+                ->implode(',');
+
+            $uspk->qcVerifications()->update([
+                'status' => $validated['action'],
+                'comment' => '[Admin Override] ' . ($validated['comment'] ?? ''),
+                'verified_at' => now(),
+            ]);
+
+            $this->appendQcLog(
+                submission: $uspk,
+                action: 'admin_override_verifiers',
+                statusBefore: $statusBeforeSummary ?: 'pending',
+                statusAfter: (string) $validated['action'],
+                comment: $validated['comment'] ?? null,
+                meta: [
+                    'affected_verification_count' => (int) $assignedVerifications->count(),
+                    'affected_verification_ids' => $assignedVerifications->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
+                    'affected_verifier_user_ids' => $assignedVerifications->pluck('user_id')->map(fn ($id) => (int) $id)->values()->all(),
+                ]
+            );
+        } else {
+            if (!$verification) {
+                abort(403, 'Anda bukan verifier yang ditugaskan untuk USPK ini.');
+            }
+
+            $verificationStatusBefore = (string) $verification->status;
+
+            $verification->update([
+                'status' => $validated['action'],
+                'comment' => $validated['comment'] ?? null,
+                'verified_at' => now(),
+            ]);
+
+            $this->appendQcLog(
+                submission: $uspk,
+                action: 'verifier_decision_recorded',
+                statusBefore: $verificationStatusBefore,
+                statusAfter: (string) $validated['action'],
+                comment: $validated['comment'] ?? null,
+                verificationId: (int) $verification->id,
+                meta: [
+                    'verifier_user_id' => (int) $verification->user_id,
+                ]
+            );
         }
-
-        if (!$verification && $this->isSasAdmin(auth()->user())) {
-            abort(422, 'Admin tidak dapat verifikasi jika tidak masuk daftar verifier yang ditetapkan.');
-        }
-
-        $verificationStatusBefore = (string) $verification->status;
-
-        $verification->update([
-            'status' => $validated['action'],
-            'comment' => $validated['comment'] ?? null,
-            'verified_at' => now(),
-        ]);
-
-        $this->appendQcLog(
-            submission: $uspk,
-            action: 'verifier_decision_recorded',
-            statusBefore: $verificationStatusBefore,
-            statusAfter: (string) $validated['action'],
-            comment: $validated['comment'] ?? null,
-            verificationId: (int) $verification->id,
-            meta: [
-                'verifier_user_id' => (int) $verification->user_id,
-            ]
-        );
 
         $hasRejected = $uspk->qcVerifications()->where('status', UspkQcVerification::STATUS_REJECTED)->exists();
         $hasPending = $uspk->qcVerifications()->where('status', UspkQcVerification::STATUS_PENDING)->exists();
@@ -413,7 +486,7 @@ class UspkQcController extends Controller
     protected function authorizeQcCoordinator(): void
     {
         if (!$this->isQcCoordinator(auth()->user())) {
-            abort(403, 'Hanya QC Coordinator yang dapat menentukan verifier.');
+            abort(403, 'Hanya QC Coordinator atau admin yang dapat menentukan verifier.');
         }
     }
 
@@ -427,14 +500,23 @@ class UspkQcController extends Controller
         abort(403, 'Hanya pengaju USPK atau admin yang dapat menjalankan aksi ini.');
     }
 
-    protected function authorizeBlockProgressUpdate(UspkSubmission $uspk): void
+    protected function authorizeDeadlineUpdate(UspkSubmission $uspk): void
     {
-        $isOwner = (int) $uspk->submitted_by === (int) auth()->id();
-        if ($isOwner || $this->isSasAdmin(auth()->user()) || $this->isQcCoordinator(auth()->user())) {
+        if ($this->isQcCoordinator(auth()->user()) || $this->isSasAdmin(auth()->user())) {
             return;
         }
 
-        abort(403, 'Anda tidak berwenang memperbarui progres blok.');
+        abort(403, 'Hanya QC Coordinator atau admin yang dapat mengatur deadline blok.');
+    }
+
+    protected function authorizeCompletionUpdate(UspkSubmission $uspk): void
+    {
+        $isOwner = (int) $uspk->submitted_by === (int) auth()->id();
+        if ($isOwner || $this->isSasAdmin(auth()->user())) {
+            return;
+        }
+
+        abort(403, 'Hanya pengaju USPK atau admin yang dapat memperbarui status selesai blok.');
     }
 
     protected function isQcCoordinator($user): bool

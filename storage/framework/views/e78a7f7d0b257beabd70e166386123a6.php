@@ -852,19 +852,14 @@
                     <i class="fas fa-wallet"></i> Budget USPK
                 </a>
                 <?php endif; ?>
-                <?php if($canApproveUspk): ?>
-                <a href="<?php echo e(route('sas.uspk-approvals.index')); ?>" class="sidebar-link <?php echo e(request()->routeIs('sas.uspk-approvals.*') ? 'active' : ''); ?>">
-                    <i class="fas fa-check-double"></i> Persetujuan Saya
+                
+                <a href="<?php echo e(route('sas.tasks.index')); ?>" class="sidebar-link <?php echo e(request()->routeIs('sas.tasks.*') ? 'active' : ''); ?>">
+                    <i class="fas fa-inbox"></i> Tugas & Persetujuan
                 </a>
-                <?php endif; ?>
-                <?php if($canReviewLegal): ?>
-                <a href="<?php echo e(route('sas.uspk-legal.index')); ?>" class="sidebar-link <?php echo e(request()->routeIs('sas.uspk-legal.*') ? 'active' : ''); ?>">
-                    <i class="fas fa-balance-scale"></i> Review Legal SPK
-                </a>
-                <?php endif; ?>
-                <?php if($canProcessQc): ?>
-                <a href="<?php echo e(route('sas.uspk-qc.index')); ?>" class="sidebar-link <?php echo e(request()->routeIs('sas.uspk-qc.*') ? 'active' : ''); ?>">
-                    <i class="fas fa-clipboard-check"></i> Proses QC SPK
+
+                <?php if($isSasStaff || $isSasAdmin): ?>
+                <a href="<?php echo e(route('sas.bapp.index')); ?>" class="sidebar-link <?php echo e(request()->routeIs('sas.bapp.*') ? 'active' : ''); ?>">
+                    <i class="fas fa-file-invoice-dollar"></i> Manajemen BAPP
                 </a>
                 <?php endif; ?>
             </div>

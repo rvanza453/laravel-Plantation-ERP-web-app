@@ -20,6 +20,9 @@ class UspkApproval extends Model
         'status',
         'comment',
         'approved_at',
+        'previous_status',
+        'rollback_by_user_id',
+        'rollback_at',
     ];
 
     protected $casts = [
