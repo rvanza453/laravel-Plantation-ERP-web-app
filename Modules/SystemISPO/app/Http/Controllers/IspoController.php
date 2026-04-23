@@ -14,6 +14,19 @@ use Illuminate\Support\Facades\Storage;
 
 class IspoController extends Controller
 {
+    private const ISPO_DATA_ENTRY_ROLES = [
+        'HR Admin',
+        'HR ISPO Officer',
+        'ISPO Admin',
+    ];
+
+    private const ISPO_AUDIT_ROLES = [
+        'HR Admin',
+        'HR ISPO Auditor',
+        'HR Manager',
+        'ISPO Auditor',
+    ];
+
     public function index()
     {
         $documents = IspoDocument::with('site')->orderBy('year', 'desc')->get();
@@ -23,7 +36,7 @@ class IspoController extends Controller
 
     public function store(Request $request)
     {
-        if (auth()->user()->moduleRole('ispo') !== 'ISPO Admin') {
+        if (!auth()->user()->hasModuleRole('ispo', self::ISPO_DATA_ENTRY_ROLES)) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -114,7 +127,14 @@ class IspoController extends Controller
 
     public function updateEntry(Request $request, $id)
     {
-        $role = auth()->user()->moduleRole('ispo') === 'ISPO Admin' ? 'admin' : 'auditor';
+        $user = auth()->user();
+        if ($user->hasModuleRole('ispo', self::ISPO_DATA_ENTRY_ROLES)) {
+            $role = 'admin';
+        } elseif ($user->hasModuleRole('ispo', self::ISPO_AUDIT_ROLES)) {
+            $role = 'auditor';
+        } else {
+            abort(403, 'Role Anda tidak memiliki izin update data ISPO.');
+        }
 
         $request->validate([
             'item_id' => 'required',
@@ -208,7 +228,14 @@ class IspoController extends Controller
     }
     public function bulkUpdate(Request $request, $id)
     {
-        $role = auth()->user()->moduleRole('ispo') === 'ISPO Admin' ? 'admin' : 'auditor';
+        $user = auth()->user();
+        if ($user->hasModuleRole('ispo', self::ISPO_DATA_ENTRY_ROLES)) {
+            $role = 'admin';
+        } elseif ($user->hasModuleRole('ispo', self::ISPO_AUDIT_ROLES)) {
+            $role = 'auditor';
+        } else {
+            abort(403, 'Role Anda tidak memiliki izin update data ISPO.');
+        }
 
         $request->validate([
             'items' => 'required|array',

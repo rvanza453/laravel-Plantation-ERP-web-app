@@ -1,33 +1,34 @@
-@extends('layouts.app')
 
-@section('content')
-<form action="{{ route('ispo.bulkUpdate', $document->id) }}" method="POST" enctype="multipart/form-data" id="bulkForm" class="w-full flex-1 flex flex-col">
-    @csrf
+
+<?php $__env->startSection('content'); ?>
+<form action="<?php echo e(route('ispo.bulkUpdate', $document->id)); ?>" method="POST" enctype="multipart/form-data" id="bulkForm" class="w-full flex-1 flex flex-col">
+    <?php echo csrf_field(); ?>
     
     <div class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center z-20 pb-4 border-b border-gray-200/50 dark:border-gray-800/50 transition-all duration-300">
         <div class="flex items-center gap-4 mb-4 sm:mb-0">
-            <a href="{{ route('ispo.index') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-200 focus:outline-none transition-all shadow-sm group" title="Back to Index">
+            <a href="<?php echo e(route('ispo.index')); ?>" class="p-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-200 focus:outline-none transition-all shadow-sm group" title="Back to Index">
                  <svg class="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
             </a>
             <div>
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight flex items-center gap-3">
                     Audit Checklist Workspace
-                    <a href="{{ route('ispo.admin.items.index') }}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100/80 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-semibold transition-colors border border-gray-200 dark:border-gray-650" title="Manage Master Hierarchy Data (Principles, Criteria, etc)">
+                    <a href="<?php echo e(route('ispo.admin.items.index')); ?>" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100/80 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-semibold transition-colors border border-gray-200 dark:border-gray-650" title="Manage Master Hierarchy Data (Principles, Criteria, etc)">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                         Edit Master Data
                     </a>
                 </h1>
                 <div class="flex items-center gap-2 mt-1">
-                    <span class="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-semibold border border-indigo-100 dark:border-indigo-800">Site: {{ $document->site->name }}</span>
-                    <span class="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-semibold border border-gray-200 dark:border-gray-700">Audit Year: {{ $document->year }}</span>
+                    <span class="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-semibold border border-indigo-100 dark:border-indigo-800">Site: <?php echo e($document->site->name); ?></span>
+                    <span class="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs font-semibold border border-gray-200 dark:border-gray-700">Audit Year: <?php echo e($document->year); ?></span>
                 </div>
             </div>
         </div>
         
         <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <div class="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full {{ Auth::user()->hasModuleRole('ispo', ['HR Admin', 'HR ISPO Officer', 'ISPO Admin']) ? 'bg-indigo-500' : 'bg-amber-500' }}"></span>
-                Mode: {{ Auth::user()->hasModuleRole('ispo', ['HR Admin', 'HR ISPO Officer', 'ISPO Admin']) ? 'Data Entry (Admin)' : 'Review (Auditor)' }}
+                <span class="w-2 h-2 rounded-full <?php echo e(Auth::user()->hasModuleRole('ispo', ['HR Admin', 'HR ISPO Officer', 'ISPO Admin']) ? 'bg-indigo-500' : 'bg-amber-500'); ?>"></span>
+                Mode: <?php echo e(Auth::user()->hasModuleRole('ispo', ['HR Admin', 'HR ISPO Officer', 'ISPO Admin']) ? 'Data Entry (Admin)' : 'Review (Auditor)'); ?>
+
             </div>
             
             <button type="submit" class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-indigo-500/20 transition-transform transform active:scale-95 focus:outline-none">
@@ -37,19 +38,19 @@
         </div>
     </div>
 
-    @if(session('success'))
+    <?php if(session('success')): ?>
         <div x-data="{ show: true }" x-show="show" class="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-4 flex items-center justify-between shadow-sm mb-6 max-w-2xl">
             <div class="flex items-center gap-3">
                 <span class="bg-emerald-100 text-emerald-600 rounded-full p-1">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                 </span>
-                <span class="font-medium text-sm">{{ session('success') }}</span>
+                <span class="font-medium text-sm"><?php echo e(session('success')); ?></span>
             </div>
             <button @click="show = false" type="button" class="text-emerald-500 hover:text-emerald-700 focus:outline-none">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         </div>
-    @endif
+    <?php endif; ?>
 
     <div class="bg-white dark:bg-gray-800 shadow-sm rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col mt-2" style="height: calc(100vh - 190px);">
         <div class="flex-1 overflow-auto custom-scrollbar rounded-2xl">
@@ -76,13 +77,13 @@
                 </tr>
             </thead>
             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700/50 text-xs">
-                @php
+                <?php
                     $prevPrinId = null;
                     $prevCritId = null;
                     $prevIndId = null;
-                @endphp
-                @foreach($rows as $index => $row)
-                    @php
+                ?>
+                <?php $__currentLoopData = $rows; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $row): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <?php
                         $verifier = $row['verifier'];
                         $entry = $entries[$verifier->id] ?? null;
                         
@@ -95,49 +96,49 @@
                         $auditNotes = $entry ? $entry->audit_notes : '';
 
                         $rowBg = $index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/50 dark:bg-gray-800/50';
-                    @endphp
-                    <tr class="{{ $rowBg }} hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group" id="row-{{ $verifier->id }}">
-                        <td class="px-4 py-3 whitespace-nowrap border-r border-gray-100 dark:border-gray-700 text-center sticky left-0 bg-inherit z-20 text-gray-400 font-mono text-[10px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{{ str_pad($index + 1, 3, '0', STR_PAD_LEFT) }}</td>
+                    ?>
+                    <tr class="<?php echo e($rowBg); ?> hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group" id="row-<?php echo e($verifier->id); ?>">
+                        <td class="px-4 py-3 whitespace-nowrap border-r border-gray-100 dark:border-gray-700 text-center sticky left-0 bg-inherit z-20 text-gray-400 font-mono text-[10px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"><?php echo e(str_pad($index + 1, 3, '0', STR_PAD_LEFT)); ?></td>
                         
                         <!-- Hierarchy Columns -->
-                        <td class="px-4 py-3 border-r border-gray-100 dark:border-gray-700 align-top {{ $prevPrinId !== $row['principle']->id ? 'border-t-4 border-t-gray-200 dark:border-t-gray-700' : '' }}">
-                            @if($prevPrinId !== $row['principle']->id)
-                                <div class="font-bold text-gray-900 dark:text-gray-100 mb-1">{{ $row['principle']->code }}</div>
-                                <div class="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-3 leading-relaxed" title="{{ $row['principle']->name }}">{{ $row['principle']->name }}</div>
-                                @php $prevPrinId = $row['principle']->id; @endphp
-                            @endif
+                        <td class="px-4 py-3 border-r border-gray-100 dark:border-gray-700 align-top <?php echo e($prevPrinId !== $row['principle']->id ? 'border-t-4 border-t-gray-200 dark:border-t-gray-700' : ''); ?>">
+                            <?php if($prevPrinId !== $row['principle']->id): ?>
+                                <div class="font-bold text-gray-900 dark:text-gray-100 mb-1"><?php echo e($row['principle']->code); ?></div>
+                                <div class="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-3 leading-relaxed" title="<?php echo e($row['principle']->name); ?>"><?php echo e($row['principle']->name); ?></div>
+                                <?php $prevPrinId = $row['principle']->id; ?>
+                            <?php endif; ?>
                         </td>
                         <td class="px-4 py-3 border-r border-gray-100 dark:border-gray-700 align-top">
-                            @if($prevCritId !== $row['criteria']->id)
-                                <div class="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-4 leading-relaxed" title="{{ $row['criteria']->name }}"><span class="font-bold text-gray-700 dark:text-gray-300">{{ $row['criteria']->code }}</span> &mdash; {{ $row['criteria']->name }}</div>
-                                @php $prevCritId = $row['criteria']->id; @endphp
-                            @endif
+                            <?php if($prevCritId !== $row['criteria']->id): ?>
+                                <div class="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-4 leading-relaxed" title="<?php echo e($row['criteria']->name); ?>"><span class="font-bold text-gray-700 dark:text-gray-300"><?php echo e($row['criteria']->code); ?></span> &mdash; <?php echo e($row['criteria']->name); ?></div>
+                                <?php $prevCritId = $row['criteria']->id; ?>
+                            <?php endif; ?>
                         </td>
                         <td class="px-4 py-3 border-r border-gray-100 dark:border-gray-700 align-top">
-                             @if($prevIndId !== $row['indicator']->id)
-                                <div class="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-4 leading-relaxed" title="{{ $row['indicator']->name }}"><span class="font-bold text-gray-700 dark:text-gray-300">{{ $row['indicator']->code }}</span> &mdash; {{ $row['indicator']->name }}</div>
-                                @php $prevIndId = $row['indicator']->id; @endphp
-                             @endif
+                             <?php if($prevIndId !== $row['indicator']->id): ?>
+                                <div class="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-4 leading-relaxed" title="<?php echo e($row['indicator']->name); ?>"><span class="font-bold text-gray-700 dark:text-gray-300"><?php echo e($row['indicator']->code); ?></span> &mdash; <?php echo e($row['indicator']->name); ?></div>
+                                <?php $prevIndId = $row['indicator']->id; ?>
+                             <?php endif; ?>
                         </td>
                         <td class="px-4 py-3 border-r border-gray-100 dark:border-gray-700 align-top">
-                            @if($row['parameter'])
-                                 <div class="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed">{{ $row['parameter']->name }}</div>
-                            @else
+                            <?php if($row['parameter']): ?>
+                                 <div class="text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed"><?php echo e($row['parameter']->name); ?></div>
+                            <?php else: ?>
                                  <span class="text-gray-300 dark:text-gray-600 italic">No specific parameter</span>
-                            @endif
+                            <?php endif; ?>
                         </td>
                         <td class="px-4 py-3 border-r border-gray-100 dark:border-gray-700 align-top">
-                             <div class="text-gray-800 dark:text-gray-200 font-medium leading-relaxed">{{ $verifier->name }}</div>
+                             <div class="text-gray-800 dark:text-gray-200 font-medium leading-relaxed"><?php echo e($verifier->name); ?></div>
                         </td>
 
                         <!-- HR Inputs (Indigo Tint) -->
                         <td class="px-3 py-3 border-r border-indigo-100/50 dark:border-gray-700 align-top bg-indigo-50/20 dark:bg-indigo-900/5">
                             <div class="relative">
-                                <select name="items[{{ $verifier->id }}][status]" class="hr-input w-full appearance-none rounded-lg border-gray-200 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-xs py-2 pl-3 pr-8 dark:bg-gray-700 dark:text-white transition-all bg-white dark:bg-gray-800 disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-800/50">
+                                <select name="items[<?php echo e($verifier->id); ?>][status]" class="hr-input w-full appearance-none rounded-lg border-gray-200 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-xs py-2 pl-3 pr-8 dark:bg-gray-700 dark:text-white transition-all bg-white dark:bg-gray-800 disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-800/50">
                                     <option value="" class="text-gray-400">- Select Status -</option>
-                                    <option value="Tersedia" {{ $status == 'Tersedia' ? 'selected' : '' }}>Tersedia</option>
-                                    <option value="Tidak Tersedia" {{ $status == 'Tidak Tersedia' ? 'selected' : '' }}>Tidak Tersedia</option>
-                                    <option value="Not Applicable" {{ $status == 'Not Applicable' ? 'selected' : '' }}>Not Applicable</option>
+                                    <option value="Tersedia" <?php echo e($status == 'Tersedia' ? 'selected' : ''); ?>>Tersedia</option>
+                                    <option value="Tidak Tersedia" <?php echo e($status == 'Tidak Tersedia' ? 'selected' : ''); ?>>Tidak Tersedia</option>
+                                    <option value="Not Applicable" <?php echo e($status == 'Not Applicable' ? 'selected' : ''); ?>>Not Applicable</option>
                                 </select>
                                 <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 hr-input-icon transition-opacity">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -145,12 +146,12 @@
                             </div>
                         </td>
                         <td class="px-3 py-3 border-r border-indigo-100/50 dark:border-gray-700 align-top bg-indigo-50/20 dark:bg-indigo-900/5">
-                            <textarea name="items[{{ $verifier->id }}][notes]" rows="2" class="hr-input w-full rounded-lg border-gray-200 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-xs py-2 px-3 dark:bg-gray-700 dark:text-white transition-all bg-white dark:bg-gray-800 resize-none disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-800/50" placeholder="Add detailed notes here...">{{ $notes }}</textarea>
+                            <textarea name="items[<?php echo e($verifier->id); ?>][notes]" rows="2" class="hr-input w-full rounded-lg border-gray-200 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-xs py-2 px-3 dark:bg-gray-700 dark:text-white transition-all bg-white dark:bg-gray-800 resize-none disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-800/50" placeholder="Add detailed notes here..."><?php echo e($notes); ?></textarea>
                         </td>
                         <td class="px-3 py-3 align-top border-r border-indigo-100/50 dark:border-gray-700 bg-indigo-50/20 dark:bg-indigo-900/5">
                             <div class="flex flex-col space-y-3">
                                 <div class="relative group/file">
-                                    <input type="file" id="file-{{ $verifier->id }}" multiple class="hr-input absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 file:cursor-pointer">
+                                    <input type="file" id="file-<?php echo e($verifier->id); ?>" multiple class="hr-input absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 file:cursor-pointer">
                                     <div class="flex items-center justify-center gap-2 w-full px-3 py-2 border border-dashed border-indigo-300 dark:border-indigo-700 rounded-lg bg-indigo-50/50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 text-xs font-medium group-hover/file:bg-indigo-100 dark:group-hover/file:bg-indigo-900/40 transition-colors">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
                                         Upload Files
@@ -158,36 +159,37 @@
                                 </div>
                                  
                                  <!-- Pending Queue -->
-                                 <div id="queue-list-{{ $verifier->id }}" class="space-y-1.5"></div>
+                                 <div id="queue-list-<?php echo e($verifier->id); ?>" class="space-y-1.5"></div>
                                  
-                                 @if($entry && $entry->attachments->count() > 0)
-                                    <div class="space-y-1.5" id="attachments-list-{{ $verifier->id }}">
-                                        @foreach($entry->attachments as $att)
-                                            <div class="flex justify-between items-center bg-white dark:bg-gray-800 px-2.5 py-1.5 rounded-md border border-gray-100 dark:border-gray-700 shadow-sm group/att" id="att-{{ $att->id }}">
+                                 <?php if($entry && $entry->attachments->count() > 0): ?>
+                                    <div class="space-y-1.5" id="attachments-list-<?php echo e($verifier->id); ?>">
+                                        <?php $__currentLoopData = $entry->attachments; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $att): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <div class="flex justify-between items-center bg-white dark:bg-gray-800 px-2.5 py-1.5 rounded-md border border-gray-100 dark:border-gray-700 shadow-sm group/att" id="att-<?php echo e($att->id); ?>">
                                                 <div class="flex items-center gap-1.5 overflow-hidden">
                                                     <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                                    <a href="{{ Storage::url($att->file_path) }}" target="_blank" class="text-[10px] text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline truncate" title="{{ $att->file_name }}">
-                                                        {{ $att->file_name }}
+                                                    <a href="<?php echo e(Storage::url($att->file_path)); ?>" target="_blank" class="text-[10px] text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline truncate" title="<?php echo e($att->file_name); ?>">
+                                                        <?php echo e($att->file_name); ?>
+
                                                     </a>
                                                 </div>
-                                                <button type="button" onclick="deleteAttachment({{ $att->id }})" class="hr-input text-gray-400 hover:text-red-500 font-bold ml-2 opacity-0 group-hover/att:opacity-100 transition-opacity focus:opacity-100" title="Remove File">
+                                                <button type="button" onclick="deleteAttachment(<?php echo e($att->id); ?>)" class="hr-input text-gray-400 hover:text-red-500 font-bold ml-2 opacity-0 group-hover/att:opacity-100 transition-opacity focus:opacity-100" title="Remove File">
                                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                                 </button>
                                             </div>
-                                        @endforeach
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                     </div>
-                                @endif
+                                <?php endif; ?>
                             </div>
                         </td>
 
                         <!-- Auditor Inputs (Amber Tint) -->
                         <td class="px-3 py-3 border-r border-amber-100/50 dark:border-gray-700 align-top bg-amber-50/20 dark:bg-amber-900/5">
                             <div class="relative">
-                                <select name="items[{{ $verifier->id }}][audit_status]" class="auditor-input w-full appearance-none rounded-lg border-gray-200 dark:border-gray-600 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs py-2 pl-3 pr-8 dark:bg-gray-700 dark:text-white transition-all bg-white dark:bg-gray-800 disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-800/50" disabled>
+                                <select name="items[<?php echo e($verifier->id); ?>][audit_status]" class="auditor-input w-full appearance-none rounded-lg border-gray-200 dark:border-gray-600 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs py-2 pl-3 pr-8 dark:bg-gray-700 dark:text-white transition-all bg-white dark:bg-gray-800 disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-800/50" disabled>
                                     <option value="" class="text-gray-400">- Select Assessment -</option>
-                                    <option value="Sesuai" {{ $auditStatus == 'Sesuai' ? 'selected' : '' }}>Sesuai (Done)</option>
-                                    <option value="Tidak Sesuai" {{ $auditStatus == 'Tidak Sesuai' ? 'selected' : '' }}>Tidak Sesuai (Non-Conformity)</option>
-                                    <option value="OFI" {{ $auditStatus == 'OFI' ? 'selected' : '' }}>OFI (Opportunity For Improvement)</option>
+                                    <option value="Sesuai" <?php echo e($auditStatus == 'Sesuai' ? 'selected' : ''); ?>>Sesuai (Done)</option>
+                                    <option value="Tidak Sesuai" <?php echo e($auditStatus == 'Tidak Sesuai' ? 'selected' : ''); ?>>Tidak Sesuai (Non-Conformity)</option>
+                                    <option value="OFI" <?php echo e($auditStatus == 'OFI' ? 'selected' : ''); ?>>OFI (Opportunity For Improvement)</option>
                                 </select>
                                 <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
@@ -195,18 +197,18 @@
                             </div>
                         </td>
                         <td class="px-3 py-3 border-r border-amber-100/50 dark:border-gray-700 align-top bg-amber-50/20 dark:bg-amber-900/5">
-                            <textarea name="items[{{ $verifier->id }}][audit_notes]" rows="2" class="auditor-input w-full rounded-lg border-gray-200 dark:border-gray-600 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs py-2 px-3 dark:bg-gray-700 dark:text-white transition-all bg-white dark:bg-gray-800 resize-none disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-800/50" placeholder="Auditor evaluation..." disabled>{{ $auditNotes }}</textarea>
+                            <textarea name="items[<?php echo e($verifier->id); ?>][audit_notes]" rows="2" class="auditor-input w-full rounded-lg border-gray-200 dark:border-gray-600 shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs py-2 px-3 dark:bg-gray-700 dark:text-white transition-all bg-white dark:bg-gray-800 resize-none disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-800/50" placeholder="Auditor evaluation..." disabled><?php echo e($auditNotes); ?></textarea>
                         </td>
                         
                         <!-- Controls -->
                         <td class="px-4 py-3 align-top text-center bg-gray-50/30 dark:bg-gray-900/30">
                             <!-- History Button -->
-                             <button type="button" onclick="openHistory({{ $entry ? $entry->id : 0 }})" class="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none ring-2 ring-transparent focus:ring-indigo-500/30" title="View Audit History log">
+                             <button type="button" onclick="openHistory(<?php echo e($entry ? $entry->id : 0); ?>)" class="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none ring-2 ring-transparent focus:ring-indigo-500/30" title="View Audit History log">
                                 <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                             </button>
                         </td>
                     </tr>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             </tbody>
         </table>
         </div>
@@ -236,7 +238,7 @@
 </div>
 
 <script>
-    let currentRole = '{{ Auth::user()->hasModuleRole('ispo', ['HR Admin', 'HR ISPO Officer', 'ISPO Admin']) ? 'admin' : (Auth::user()->hasModuleRole('ispo', ['HR ISPO Auditor', 'HR Manager', 'ISPO Auditor']) ? 'auditor' : 'viewer') }}';
+    let currentRole = '<?php echo e(Auth::user()->hasModuleRole('ispo', ['HR Admin', 'HR ISPO Officer', 'ISPO Admin']) ? 'admin' : (Auth::user()->hasModuleRole('ispo', ['HR ISPO Auditor', 'HR Manager', 'ISPO Auditor']) ? 'auditor' : 'viewer')); ?>';
     let fileQueue = new Map(); // Map<verifierId, Array<File>>
 
     function updateRole() {
@@ -453,4 +455,6 @@
         document.getElementById('historyModal').classList.add('hidden');
     }
 </script>
-@endsection
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\laragon\www\plantation.oilpam.my.id\Modules/SystemISPO\resources/views/ispo/show.blade.php ENDPATH**/ ?>

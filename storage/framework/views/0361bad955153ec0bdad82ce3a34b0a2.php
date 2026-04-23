@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="h-full">
+<html lang="<?php echo e(str_replace('_', '-', app()->getLocale())); ?>" class="h-full">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ config('app.name') }} — System ISPO</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <meta name="csrf-token" content="<?php echo e(csrf_token()); ?>">
+    <title><?php echo e(config('app.name')); ?> — System ISPO</title>
+    <?php echo app('Illuminate\Foundation\Vite')(['resources/css/app.css', 'resources/js/app.js']); ?>
     <style>
         .ispo-mobile-header,
         .ispo-mobile-drawer,
@@ -133,12 +133,12 @@
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen antialiased">
 
-    @include('components.impersonation-banner')
-    @include('components.module-hub-button')
+    <?php echo $__env->make('components.impersonation-banner', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+    <?php echo $__env->make('components.module-hub-button', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
 
     <nav class="ispo-desktop-nav bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <div class="flex items-center gap-4">
-            <a href="{{ route('modules.index') }}"
+            <a href="<?php echo e(route('modules.index')); ?>"
                class="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors font-medium">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
@@ -157,13 +157,15 @@
 
         <div class="flex items-center gap-3">
             <span class="hidden sm:inline text-xs font-medium px-2.5 py-1 rounded-full
-                {{ auth()->user()->hasModuleRole('ispo', ['HR Admin', 'HR ISPO Officer', 'ISPO Admin'])
+                <?php echo e(auth()->user()->hasModuleRole('ispo', ['HR Admin', 'HR ISPO Officer', 'ISPO Admin'])
                     ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
-                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' }}">
-                {{ auth()->user()->moduleRole('ispo') ?? 'Viewer' }}
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'); ?>">
+                <?php echo e(auth()->user()->moduleRole('ispo') ?? 'Viewer'); ?>
+
             </span>
             <span class="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                {{ auth()->user()->name }}
+                <?php echo e(auth()->user()->name); ?>
+
             </span>
         </div>
     </nav>
@@ -173,36 +175,36 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
         <h2>HR Modul</h2>
-        <a href="{{ route('modules.index') }}" class="ispo-mobile-btn" aria-label="Hub modul">
+        <a href="<?php echo e(route('modules.index')); ?>" class="ispo-mobile-btn" aria-label="Hub modul">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
         </a>
     </header>
 
     <div id="ispoMobileOverlay" class="ispo-mobile-overlay" style="display:none;" onclick="toggleIspoDrawer(false)"></div>
     <aside id="ispoMobileDrawer" class="ispo-mobile-drawer" aria-hidden="true">
-        <a href="{{ route('modules.index') }}"><span>Hub Modul</span></a>
-        <a href="{{ route('hr.dashboard') }}" class="{{ request()->routeIs('hr.dashboard') ? 'active' : '' }}"><span>HR Dashboard</span></a>
-        <a href="{{ route('ispo.index') }}" class="{{ request()->routeIs('ispo.*') ? 'active' : '' }}"><span>Sub-Sistem ISPO</span></a>
-        <a href="{{ route('hr.external-requests.index') }}" class="{{ request()->routeIs('hr.external-requests.*') ? 'active' : '' }}"><span>Rekap Data Eksternal</span></a>
-        @if(auth()->user()->hasModuleRole('ispo', ['HR Admin', 'ISPO Admin']))
-            <a href="{{ route('ispo.admin.items.index') }}" class="{{ request()->routeIs('ispo.admin.items.*') ? 'active' : '' }}"><span>Master Data ISPO</span></a>
-        @endif
+        <a href="<?php echo e(route('modules.index')); ?>"><span>Hub Modul</span></a>
+        <a href="<?php echo e(route('hr.dashboard')); ?>" class="<?php echo e(request()->routeIs('hr.dashboard') ? 'active' : ''); ?>"><span>HR Dashboard</span></a>
+        <a href="<?php echo e(route('ispo.index')); ?>" class="<?php echo e(request()->routeIs('ispo.*') ? 'active' : ''); ?>"><span>Sub-Sistem ISPO</span></a>
+        <a href="<?php echo e(route('hr.external-requests.index')); ?>" class="<?php echo e(request()->routeIs('hr.external-requests.*') ? 'active' : ''); ?>"><span>Rekap Data Eksternal</span></a>
+        <?php if(auth()->user()->hasModuleRole('ispo', ['HR Admin', 'ISPO Admin'])): ?>
+            <a href="<?php echo e(route('ispo.admin.items.index')); ?>" class="<?php echo e(request()->routeIs('ispo.admin.items.*') ? 'active' : ''); ?>"><span>Master Data ISPO</span></a>
+        <?php endif; ?>
     </aside>
 
     <main class="p-6">
-        @yield('content')
+        <?php echo $__env->yieldContent('content'); ?>
     </main>
 
     <nav class="ispo-mobile-bottom-nav" aria-label="ISPO mobile navigation">
         <div class="inner">
-            <a href="{{ route('modules.index') }}"><span>Modul</span></a>
-            <a href="{{ route('hr.dashboard') }}" class="{{ request()->routeIs('hr.dashboard') ? 'active' : '' }}"><span>HR</span></a>
-            <a href="{{ route('hr.external-requests.index') }}" class="{{ request()->routeIs('hr.external-requests.*') ? 'active' : '' }}"><span>Rekap</span></a>
-            @if(auth()->user()->hasModuleRole('ispo', ['HR Admin', 'ISPO Admin']))
-                <a href="{{ route('ispo.admin.items.index') }}" class="{{ request()->routeIs('ispo.admin.items.*') ? 'active' : '' }}"><span>Master</span></a>
-            @else
-                <a href="{{ route('ispo.index') }}" class="{{ request()->routeIs('ispo.*') ? 'active' : '' }}"><span>Status</span></a>
-            @endif
+            <a href="<?php echo e(route('modules.index')); ?>"><span>Modul</span></a>
+            <a href="<?php echo e(route('hr.dashboard')); ?>" class="<?php echo e(request()->routeIs('hr.dashboard') ? 'active' : ''); ?>"><span>HR</span></a>
+            <a href="<?php echo e(route('hr.external-requests.index')); ?>" class="<?php echo e(request()->routeIs('hr.external-requests.*') ? 'active' : ''); ?>"><span>Rekap</span></a>
+            <?php if(auth()->user()->hasModuleRole('ispo', ['HR Admin', 'ISPO Admin'])): ?>
+                <a href="<?php echo e(route('ispo.admin.items.index')); ?>" class="<?php echo e(request()->routeIs('ispo.admin.items.*') ? 'active' : ''); ?>"><span>Master</span></a>
+            <?php else: ?>
+                <a href="<?php echo e(route('ispo.index')); ?>" class="<?php echo e(request()->routeIs('ispo.*') ? 'active' : ''); ?>"><span>Status</span></a>
+            <?php endif; ?>
             <button type="button" onclick="toggleIspoDrawer(true)"><span>Menu</span></button>
         </div>
     </nav>
@@ -224,3 +226,4 @@
 
 </body>
 </html>
+<?php /**PATH C:\laragon\www\plantation.oilpam.my.id\resources\views/layouts/app.blade.php ENDPATH**/ ?>

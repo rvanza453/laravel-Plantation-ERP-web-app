@@ -14,7 +14,7 @@ class ModuleHubController extends Controller
 
         $sasReady = Route::has('sas.dashboard');
         $qcReady = Route::has('qc.dashboard');
-        $ispoReady = Route::has('ispo.index');
+        $hrReady = Route::has('hr.dashboard');
         $managementReady = Route::has('management.dashboard');
         $prReady = Route::has('pr.dashboard');
 
@@ -36,12 +36,12 @@ class ModuleHubController extends Controller
                 'disabled' => ! $qcReady || ! ($status['QcComplaintSystem'] ?? true),
             ],
             [
-                'name' => 'System ISPO',
-                'description' => 'Dokumentasi dan audit kepatuhan Indonesian Sustainable Palm Oil (ISPO).',
-                'route' => $ispoReady ? route('ispo.index') : '#',
-                'icon' => 'fa-leaf',
+                'name' => 'HR Modul',
+                'description' => 'Sub-Sistem ISPO dan Rekapitulasi Permintaan Data Eksternal berbasis tiket.',
+                'route' => $hrReady ? route('hr.dashboard') : '#',
+                'icon' => 'fa-users-between-lines',
                 'accent' => 'green',
-                'disabled' => ! $ispoReady || ! ($status['SystemISPO'] ?? true),
+                'disabled' => ! $hrReady || ! ($status['SystemISPO'] ?? true),
             ],
             [
                 'name' => 'User & Role Management',

@@ -3,8 +3,14 @@
 return [
     'modules' => [
         'ispo' => [
-            'label' => 'System ISPO',
+            'label' => 'HR Modul',
             'roles' => [
+                'HR Admin',
+                'HR ISPO Officer',
+                'HR ISPO Auditor',
+                'HR Data Officer',
+                'HR Manager',
+                'HR Viewer',
                 'ISPO Admin',
                 'ISPO Auditor',
             ],
