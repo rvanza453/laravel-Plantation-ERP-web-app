@@ -52,5 +52,15 @@ return [
                 'User',
             ],
         ],
+        'lab' => [
+            'label' => 'Lab System',
+            'roles' => [
+                'Lab Admin',
+                'Lab Sampler',
+                'Lab Analyst',
+                'Lab Supervisor',
+                'Lab Viewer',
+            ],
+        ],
     ],
 ];

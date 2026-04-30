@@ -1,10 +1,51 @@
-@extends('layouts.app')
+<x-systemispo::layouts.hr-master title="Audit Checklist Workspace">
+@push('styles')
+<style>
+    .ispo-workspace .workspace-topbar {
+        position: sticky;
+        top: 0;
+        z-index: 25;
+        backdrop-filter: blur(6px);
+        background: rgba(248, 250, 252, 0.86);
+    }
 
-@section('content')
-<form action="{{ route('ispo.bulkUpdate', $document->id) }}" method="POST" enctype="multipart/form-data" id="bulkForm" class="w-full flex-1 flex flex-col">
+    .ispo-workspace .workspace-shell {
+        height: calc(100vh - 260px);
+        min-height: 500px;
+    }
+
+    .ispo-workspace .workspace-scroll {
+        overflow: auto;
+        border-radius: 1rem;
+    }
+
+    .ispo-workspace .workspace-table {
+        min-width: 1580px;
+    }
+
+    .ispo-workspace .workspace-table tbody tr td {
+        vertical-align: top;
+    }
+
+    @media (max-width: 1024px) {
+        .ispo-workspace .workspace-shell {
+            height: auto;
+            min-height: 0;
+        }
+
+        .ispo-workspace .workspace-topbar {
+            position: static;
+            background: transparent;
+            backdrop-filter: none;
+        }
+    }
+</style>
+@endpush
+
+<form action="{{ route('ispo.bulkUpdate', $document->id) }}" method="POST" enctype="multipart/form-data" id="bulkForm" class="ispo-workspace w-full flex-1 flex flex-col">
     @csrf
     
-    <div class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center z-20 pb-4 border-b border-gray-200/50 dark:border-gray-800/50 transition-all duration-300">
+    <div class="workspace-topbar mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center z-20 pb-4 border-b border-gray-200/50 dark:border-gray-800/50 transition-all duration-300">
         <div class="flex items-center gap-4 mb-4 sm:mb-0">
             <a href="{{ route('ispo.index') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-200 focus:outline-none transition-all shadow-sm group" title="Back to Index">
                  <svg class="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
@@ -51,9 +92,9 @@
         </div>
     @endif
 
-    <div class="bg-white dark:bg-gray-800 shadow-sm rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col mt-2" style="height: calc(100vh - 190px);">
-        <div class="flex-1 overflow-auto custom-scrollbar rounded-2xl">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 relative" style="min-width: 1500px">
+    <div class="workspace-shell bg-white dark:bg-gray-800 shadow-sm rounded-2xl border border-gray-100 dark:border-gray-700 flex flex-col mt-2">
+        <div class="workspace-scroll flex-1 custom-scrollbar">
+            <table class="workspace-table min-w-full divide-y divide-gray-200 dark:divide-gray-700 relative">
                 <thead class="bg-gray-50/95 dark:bg-gray-800/95 backdrop-blur-xl border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30 shadow-sm">
                 <tr>
                     <th scope="col" class="px-4 py-4 text-left text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 sticky left-0 bg-gray-50 dark:bg-gray-800 z-40 w-12 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">No</th>
@@ -453,4 +494,4 @@
         document.getElementById('historyModal').classList.add('hidden');
     }
 </script>
-@endsection
+</x-systemispo::layouts.hr-master>

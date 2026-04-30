@@ -315,12 +315,20 @@ class UspkSubmissionController extends Controller
         ]);
 
         $year = (int) ($validated['year'] ?? now()->year);
+        $hasSubDepartmentColumn = Schema::hasColumn('uspk_budget_activities', 'sub_department_id');
 
         $baseQuery = UspkBudgetActivity::query()
-            ->where('sub_department_id', $validated['sub_department_id'])
             ->where('is_active', true)
             ->where('year', $year)
             ->with('job');
+
+        if ($hasSubDepartmentColumn) {
+            $baseQuery->where('sub_department_id', $validated['sub_department_id']);
+        } else {
+            $baseQuery->whereHas('block', function ($query) use ($validated) {
+                $query->where('sub_department_id', $validated['sub_department_id']);
+            });
+        }
 
         $query = clone $baseQuery;
 

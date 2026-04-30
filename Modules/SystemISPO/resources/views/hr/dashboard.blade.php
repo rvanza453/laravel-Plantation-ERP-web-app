@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@section('content')
+<x-systemispo::layouts.hr-master title="HR Dashboard">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -257,9 +255,11 @@
                                 @php
                                     $dotClass = match($ticket->status_proses) {
                                         'menunggu' => 'dot-pending',
-                                        'diproses' => 'dot-processing',
+                                        'sedang_diproses' => 'dot-processing',
+                                        'menunggu_persetujuan_manajer' => 'dot-processing',
                                         'selesai' => 'dot-finished',
-                                        default => 'dot-cancelled'
+                                        'ditolak' => 'dot-cancelled',
+                                        default => ''
                                     };
                                 @endphp
                                 <span class="pf-status-pill {{ $dotClass }}">{{ $ticket->status_proses }}</span>
@@ -291,4 +291,4 @@
     </div>
 
 </div>
-@endsection
+</x-systemispo::layouts.hr-master>

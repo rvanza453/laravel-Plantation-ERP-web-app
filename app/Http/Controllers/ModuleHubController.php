@@ -17,6 +17,7 @@ class ModuleHubController extends Controller
         $hrReady = Route::has('hr.dashboard');
         $managementReady = Route::has('management.dashboard');
         $prReady = Route::has('pr.dashboard');
+        $labReady = Route::has('lab.dashboard');
 
         $modules = [
             [
@@ -58,6 +59,14 @@ class ModuleHubController extends Controller
                 'icon' => 'fa-shopping-cart',
                 'accent' => 'amber',
                 'disabled' => ! $prReady || ! ($status['PrSystem'] ?? true),
+            ],
+            [
+                'name' => 'Lab System',
+                'description' => 'Dashboard Kendali Mutu Sawit untuk alur sampling, analisa, dan penyajian data laboratorium.',
+                'route' => $labReady ? route('lab.dashboard') : '#',
+                'icon' => 'fa-flask-vial',
+                'accent' => 'green',
+                'disabled' => ! $labReady || ! ($status['LabSystem'] ?? true),
             ],
         ];
 

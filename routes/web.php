@@ -47,6 +47,7 @@ Route::middleware(['auth', 'assigned.role'])->group(function () {
             // Maintenance Routes
             Route::get('maintenance', [\App\Http\Controllers\Admin\SystemMaintenanceController::class, 'index'])->name('maintenance.index');
             Route::post('maintenance/{module}', [\App\Http\Controllers\Admin\SystemMaintenanceController::class, 'toggle'])->name('maintenance.toggle');
+            Route::post('maintenance/tools', [\App\Http\Controllers\Admin\SystemMaintenanceController::class, 'runTool'])->name('maintenance.tools');
         });
 
         // Backward-compatible aliases to keep old account URLs working,

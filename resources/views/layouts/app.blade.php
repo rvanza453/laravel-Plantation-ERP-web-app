@@ -147,11 +147,16 @@
             </a>
             <span class="text-gray-300 dark:text-gray-600">/</span>
             <span class="text-sm font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                HR Modul
+                @if(request()->is('lab*'))
+                    <i class="fa-solid fa-flask-vial w-4 h-4"></i>
+                    Lab System
+                @else
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    HR Modul
+                @endif
             </span>
         </div>
 
@@ -172,7 +177,7 @@
         <button type="button" class="ispo-mobile-btn" onclick="toggleIspoDrawer(true)" aria-label="Buka menu">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
-        <h2>HR Modul</h2>
+        <h2>{{ request()->is('lab*') ? 'Lab System' : 'HR Modul' }}</h2>
         <a href="{{ route('modules.index') }}" class="ispo-mobile-btn" aria-label="Hub modul">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
         </a>
@@ -181,11 +186,16 @@
     <div id="ispoMobileOverlay" class="ispo-mobile-overlay" style="display:none;" onclick="toggleIspoDrawer(false)"></div>
     <aside id="ispoMobileDrawer" class="ispo-mobile-drawer" aria-hidden="true">
         <a href="{{ route('modules.index') }}"><span>Hub Modul</span></a>
-        <a href="{{ route('hr.dashboard') }}" class="{{ request()->routeIs('hr.dashboard') ? 'active' : '' }}"><span>HR Dashboard</span></a>
-        <a href="{{ route('ispo.index') }}" class="{{ request()->routeIs('ispo.*') ? 'active' : '' }}"><span>Sub-Sistem ISPO</span></a>
-        <a href="{{ route('hr.external-requests.index') }}" class="{{ request()->routeIs('hr.external-requests.*') ? 'active' : '' }}"><span>Rekap Data Eksternal</span></a>
-        @if(auth()->user()->hasModuleRole('ispo', ['HR Admin', 'ISPO Admin']))
-            <a href="{{ route('ispo.admin.items.index') }}" class="{{ request()->routeIs('ispo.admin.items.*') ? 'active' : '' }}"><span>Master Data ISPO</span></a>
+        @if(request()->is('lab*'))
+            <a href="{{ route('lab.dashboard') }}" class="{{ request()->routeIs('lab.dashboard') ? 'active' : '' }}"><span>Lab Dashboard</span></a>
+            <a href="{{ route('lab.sampling.create') }}" class="{{ request()->routeIs('lab.sampling.*') ? 'active' : '' }}"><span>Pengambilan Sampling</span></a>
+        @else
+            <a href="{{ route('hr.dashboard') }}" class="{{ request()->routeIs('hr.dashboard') ? 'active' : '' }}"><span>HR Dashboard</span></a>
+            <a href="{{ route('ispo.index') }}" class="{{ request()->routeIs('ispo.*') ? 'active' : '' }}"><span>Sub-Sistem ISPO</span></a>
+            <a href="{{ route('hr.external-requests.index') }}" class="{{ request()->routeIs('hr.external-requests.*') ? 'active' : '' }}"><span>Rekap Data Eksternal</span></a>
+            @if(auth()->user()->hasModuleRole('ispo', ['HR Admin', 'ISPO Admin']))
+                <a href="{{ route('ispo.admin.items.index') }}" class="{{ request()->routeIs('ispo.admin.items.*') ? 'active' : '' }}"><span>Master Data ISPO</span></a>
+            @endif
         @endif
     </aside>
 
@@ -193,15 +203,15 @@
         @yield('content')
     </main>
 
-    <nav class="ispo-mobile-bottom-nav" aria-label="ISPO mobile navigation">
+    <nav class="ispo-mobile-bottom-nav" aria-label="Module mobile navigation">
         <div class="inner">
             <a href="{{ route('modules.index') }}"><span>Modul</span></a>
-            <a href="{{ route('hr.dashboard') }}" class="{{ request()->routeIs('hr.dashboard') ? 'active' : '' }}"><span>HR</span></a>
-            <a href="{{ route('hr.external-requests.index') }}" class="{{ request()->routeIs('hr.external-requests.*') ? 'active' : '' }}"><span>Rekap</span></a>
-            @if(auth()->user()->hasModuleRole('ispo', ['HR Admin', 'ISPO Admin']))
-                <a href="{{ route('ispo.admin.items.index') }}" class="{{ request()->routeIs('ispo.admin.items.*') ? 'active' : '' }}"><span>Master</span></a>
+            @if(request()->is('lab*'))
+                <a href="{{ route('lab.dashboard') }}" class="{{ request()->routeIs('lab.dashboard') ? 'active' : '' }}"><span>Dashboard</span></a>
+                <a href="{{ route('lab.sampling.create') }}" class="{{ request()->routeIs('lab.sampling.*') ? 'active' : '' }}"><span>Sampling</span></a>
             @else
-                <a href="{{ route('ispo.index') }}" class="{{ request()->routeIs('ispo.*') ? 'active' : '' }}"><span>Status</span></a>
+                <a href="{{ route('hr.dashboard') }}" class="{{ request()->routeIs('hr.dashboard') ? 'active' : '' }}"><span>HR</span></a>
+                <a href="{{ route('hr.external-requests.index') }}" class="{{ request()->routeIs('hr.external-requests.*') ? 'active' : '' }}"><span>Rekap</span></a>
             @endif
             <button type="button" onclick="toggleIspoDrawer(true)"><span>Menu</span></button>
         </div>

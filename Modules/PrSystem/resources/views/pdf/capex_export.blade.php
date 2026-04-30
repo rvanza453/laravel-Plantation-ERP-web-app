@@ -128,25 +128,22 @@
         $ttd4 = $getApproval(4); 
         $ttd5 = $getApproval(5); 
         
-        // Function to get Role Label from Config if Approval is missing (Optional but good for dynamic labels)
-        // For now, hardcoded roles in layout are used as per user request images.
-        // User requested strict adherence to image layout, so we keep hardcoded labels like "KA. Keuangan", "KTU Group", etc.
-        // However, if we wanted dynamic labels from config:
-        // $getConfig = fn($index) => \Modules\PrSystem\Models\CapexColumnConfig::where('department_id', $capex->department_id)->where('column_index', $index)->first();
+        // Helper label jabatan dari akun approver (field position), dengan fallback aman.
+        $approverPosition = fn($approval, $fallback = '-') => $approval?->approver?->position ?: $fallback;
 
         // Helper Budget Figures
-        $budgetAwal = $capex->is_budgeted ? (($capex->capexBudget->amount ?? 0) + ($capex->capexBudget->pta_amount ?? 0)) : 0;
+        $budgetAwal = $capex->code_budget_ditanam ? (($capex->capexBudget->amount ?? 0) + ($capex->capexBudget->pta_amount ?? 0)) : 0;
         $usulan     = $capex->amount;
         
         // Capex yang disetujui sebelumnya: Already computed in controller, just use it
         // $capexSebelumnya is passed from controller to avoid class resolution issues
         
         // Saldo Anggaran yang dapat dipakai (sehingga capex ini bisa diajukan)
-        $saldoDapatDipakai = $capex->is_budgeted ? ($budgetAwal - $capexSebelumnya) : 0;
+        $saldoDapatDipakai = $capex->code_budget_ditanam ? ($budgetAwal - $capexSebelumnya) : 0;
         
         // Over / Under setelah usulan ini
-        $overUnder = $capex->is_budgeted ? ($saldoDapatDipakai - $usulan) : (0 - $usulan);
-        $sisaAkhir = $capex->is_budgeted ? $overUnder : 0;
+        $overUnder = $capex->code_budget_ditanam ? ($saldoDapatDipakai - $usulan) : (0 - $usulan);
+        $sisaAkhir = $capex->code_budget_ditanam ? $overUnder : 0;
 
         $answers = $capex->questionnaire_answers ?? [];
         
@@ -298,15 +295,15 @@
         <tr>
             <td>
                 <b><u>{{ $ttd1->approver->name ?? $capex->user->name }}</u></b><br>
-                Estate Manager / Mill Manager
+                {{ $approverPosition($ttd1, $capex->user->position ?? 'Estate Manager / Mill Manager') }}
             </td>
             <td>
                 <b><u>{{ $ttd2->approver->name ?? '-' }}</u></b><br>
-                KA Keuangan
+                {{ $approverPosition($ttd2, 'KA Keuangan') }}
             </td>
             <td>
                 <b><u>{{ $ttd3->approver->name ?? '-' }}</u></b><br>
-                General Manager
+                {{ $approverPosition($ttd3, 'General Manager') }}
             </td>
         </tr>
     </table>
@@ -429,13 +426,13 @@
                                 <div>
                                     Dianggarkan: 
                                     <span style="display: inline-block; border: 1px solid #000; width: 14px; height: 14px; text-align: center; margin-left: 5px; vertical-align: middle; line-height: 14px;">
-                                        {{ $capex->is_budgeted ? '✔' : '' }}
+                                        {{ $capex->code_budget_ditanam ? '✔' : '' }}
                                     </span>
                                 </div>
                                 <div>
                                     Tidak Dianggarkan: 
                                     <span style="display: inline-block; border: 1px solid #000; width: 14px; height: 14px; text-align: center; margin-left: 5px; vertical-align: middle; line-height: 14px;">
-                                        {{ !$capex->is_budgeted ? '✔' : '' }}
+                                        {{ !$capex->code_budget_ditanam ? '✔' : '' }}
                                     </span>
                                 </div>
                             </div>
@@ -470,7 +467,7 @@
         
         <!-- TTD 3 (GM) -->
         <tr>
-            <td>General Manager</td>
+            <td>{{ $approverPosition($ttd3, 'General Manager') }}</td>
             <td>{{ $ttd3->approver->name ?? '-' }}</td>
             <td class="text-center sig-container">
                  @if($sigImg($ttd3)) <div class="sig-img-wrapper"><img src="{{ $sigImg($ttd3) }}" class="sig-img"></div> @else TTD 3 @endif
@@ -480,7 +477,7 @@
         
         <!-- TTD 1 (KA Keu) -->
          <tr>
-            <td>KA. Keuangan</td>
+            <td>{{ $approverPosition($ttd2, 'KA. Keuangan') }}</td>
             <td>{{ $ttd2->approver->name ?? '-' }}</td>
             <td class="text-center sig-container">
                 @if($sigImg($ttd2)) <div class="sig-img-wrapper"><img src="{{ $sigImg($ttd2) }}" class="sig-img"></div> @else TTD 2 @endif
@@ -493,7 +490,7 @@
 
         <!-- TTD 4 (Manager FAT) -->
         <tr>
-            <td>Manager FAT</td>
+            <td>{{ $approverPosition($ttd4, 'Manager FAT') }}</td>
             <td>{{ $ttd4->approver->name ?? '-' }}</td>
             <td class="text-center sig-container">
                  @if($sigImg($ttd4)) <div class="sig-img-wrapper"><img src="{{ $sigImg($ttd4) }}" class="sig-img"></div> @else TTD 4 @endif
@@ -503,7 +500,7 @@
 
         <!-- TTD 5 (Head EPD) -->
         <tr>
-            <td>Head Of EPD</td>
+            <td>{{ $approverPosition($ttd5, 'Head Of EPD') }}</td>
             <td>{{ $ttd5->approver->name ?? '-' }}</td>
             <td class="text-center sig-container">
                 @if($sigImg($ttd5)) <div class="sig-img-wrapper"><img src="{{ $sigImg($ttd5) }}" class="sig-img"></div> @else TTD 5 @endif

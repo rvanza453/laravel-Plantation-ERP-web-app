@@ -5,11 +5,10 @@ namespace Modules\SystemISPO\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Modules\SystemISPO\App\Models\HrExternalDataRequest;
-use Modules\SystemISPO\App\Models\HrExternalDataRequestAccessLog;
-use Modules\SystemISPO\App\Models\HrExternalDataRequestAttachment;
-use Modules\SystemISPO\App\Models\HrExternalDataRequestShareToken;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Modules\SystemISPO\Models\HrExternalDataRequest;
+use Modules\SystemISPO\Models\HrExternalDataRequestAccessLog;
+use Modules\SystemISPO\Models\HrExternalDataRequestAttachment;
+use Modules\SystemISPO\Models\HrExternalDataRequestShareToken;
 
 class HrExternalDataRequestPublicController extends Controller
 {
@@ -37,35 +36,37 @@ class HrExternalDataRequestPublicController extends Controller
             ->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
     }
 
-    public function preview(Request $request, string $token, HrExternalDataRequestAttachment $attachment): BinaryFileResponse
+    public function preview(Request $request, string $token, HrExternalDataRequestAttachment $attachment)
     {
         $shareToken = $this->resolveToken($token);
 
-        if (!$shareToken || !$shareToken->canBeUsed() || $shareToken->external_data_request_id !== $attachment->external_data_request_id) {
+        if (!$shareToken || !$shareToken->canBeUsed() || (int) $shareToken->external_data_request_id !== (int) $attachment->external_data_request_id) {
             abort(403, 'Akses token tidak valid.');
         }
 
-        if (!Storage::disk('local')->exists($attachment->file_path)) {
+        $disk = $this->resolveAttachmentDisk($attachment->file_path);
+
+        if (!Storage::disk($disk)->exists($attachment->file_path)) {
             $this->touchAndLog($shareToken, $request, 'preview_missing', 404);
             abort(404);
         }
 
         $this->touchAndLog($shareToken, $request, 'preview_attachment', 200);
 
-        return response()->file(Storage::disk('local')->path($attachment->file_path), [
+        return Storage::disk($disk)->response($attachment->file_path, $attachment->file_name, [
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
             'X-Robots-Tag' => 'noindex, nofollow, noarchive',
             'Content-Type' => $attachment->mime_type ?: 'application/octet-stream',
             'Content-Disposition' => 'inline; filename="' . addslashes($attachment->file_name) . '"',
-        ]);
+        ], 'inline');
     }
 
-    public function download(Request $request, string $token, HrExternalDataRequestAttachment $attachment): BinaryFileResponse
+    public function download(Request $request, string $token, HrExternalDataRequestAttachment $attachment)
     {
         $shareToken = $this->resolveToken($token);
 
-        if (!$shareToken || !$shareToken->canBeUsed() || $shareToken->external_data_request_id !== $attachment->external_data_request_id) {
+        if (!$shareToken || !$shareToken->canBeUsed() || (int) $shareToken->external_data_request_id !== (int) $attachment->external_data_request_id) {
             abort(403, 'Akses token tidak valid.');
         }
 
@@ -74,15 +75,17 @@ class HrExternalDataRequestPublicController extends Controller
             abort(403, 'Download dinonaktifkan untuk tautan ini.');
         }
 
-        if (!Storage::disk('local')->exists($attachment->file_path)) {
+        $disk = $this->resolveAttachmentDisk($attachment->file_path);
+
+        if (!Storage::disk($disk)->exists($attachment->file_path)) {
             $this->touchAndLog($shareToken, $request, 'download_missing', 404);
             abort(404);
         }
 
         $this->touchAndLog($shareToken, $request, 'download_attachment', 200);
 
-        return response()->download(
-            Storage::disk('local')->path($attachment->file_path),
+        return Storage::disk($disk)->download(
+            $attachment->file_path,
             $attachment->file_name,
             [
                 'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
@@ -113,6 +116,11 @@ class HrExternalDataRequestPublicController extends Controller
             'user_agent' => (string) $request->userAgent(),
             'accessed_at' => now(),
         ]);
+    }
+
+    private function resolveAttachmentDisk(string $path): string
+    {
+        return Storage::disk('public')->exists($path) ? 'public' : 'local';
     }
 
     private function forbiddenPage(int $statusCode)

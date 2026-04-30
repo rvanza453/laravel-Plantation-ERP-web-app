@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Migrations\Migration;
 
 class OneTimeMigrationController extends Controller
 {
@@ -18,7 +17,7 @@ class OneTimeMigrationController extends Controller
     public function runJobNormalization(Request $request)
     {
         // IMPORTANT: Change this token to a long, random, and secret string!
-        $secretToken = 'ganti-dengan-token-rahasia-anda';
+        $secretToken = 'tukangkebun123';
 
         if ($request->input('token') !== $secretToken) {
             return response('Unauthorized.', 403);
@@ -114,13 +113,21 @@ class OneTimeMigrationController extends Controller
                 }
 
                 DB::table('jobs')->update(['department_id' => null]);
-
-                if (!Schema::hasColumn('jobs', 'site_code_unique_guard')) {
-                    Schema::table('jobs', function ($table) {
-                        $table->unique(['site_id', 'code'], 'jobs_site_code_unique');
-                    });
-                }
             });
+
+            // Schema changes (DDL) must be outside the transaction block.
+            // Avoid Doctrine dependency; inspect index directly from information_schema.
+            $indexExists = DB::table('information_schema.statistics')
+                ->where('table_schema', DB::getDatabaseName())
+                ->where('table_name', 'jobs')
+                ->where('index_name', 'jobs_site_code_unique')
+                ->exists();
+
+            if (!$indexExists) {
+                Schema::table('jobs', function ($table) {
+                    $table->unique(['site_id', 'code'], 'jobs_site_code_unique');
+                });
+            }
 
             // Manually record the migration in the migrations table
             $batch = DB::table('migrations')->max('batch') + 1;

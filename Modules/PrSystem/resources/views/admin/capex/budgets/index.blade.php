@@ -5,25 +5,40 @@
         </h2>
     </x-slot>
 
+    <style>
+        /* Modern & Thick Tom Select */
+        .ts-control {
+            padding: 12px 16px !important;
+            border-radius: 0.5rem !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            min-height: 46px !important;
+        }
+        .ts-wrapper.single .ts-control::after {
+            right: 15px !important;
+        }
+    </style>
+
     <div class="py-12">
         <div class="w-full max-w-none mx-auto sm:px-6 lg:px-8">
             
             <!-- Create New Budget -->
             <div class="bg-white shadow-sm sm:rounded-lg mb-6 p-6">
                 <h3 class="text-lg font-bold mb-4">Set Budget</h3>
-                <form action="{{ route('admin.capex.budgets.store') }}" method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <form action="{{ route('admin.capex.budgets.store') }}" method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     @csrf
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Department</label>
-                        <select name="department_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Department</label>
+                        <select name="department_id" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4 text-sm font-medium">
                             @foreach($departments as $dept)
                                 <option value="{{ $dept->id }}">{{ $dept->name }}</option>
                             @endforeach
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Asset</label>
-                        <select name="capex_asset_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Asset</label>
+                        <select id="capex_asset_id" name="capex_asset_id" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4 text-sm font-medium">
+                            <option value="">-- Pilih Asset --</option>
                             @foreach($assets as $asset)
                                 <option value="{{ $asset->id }}">{{ $asset->code }} - {{ $asset->name }}</option>
                             @endforeach
@@ -31,23 +46,23 @@
                     </div>
                     {{-- Budget Code Auto Generated --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Total Quantity</label>
-                        <input type="number" name="original_quantity" min="1" value="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Total Quantity</label>
+                        <input type="number" name="original_quantity" min="1" value="1" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4 text-sm font-medium" required>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Total Amount</label>
-                        <input type="number" name="amount" min="0" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Total Amount</label>
+                        <input type="number" name="amount" min="0" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4 text-sm font-medium" required>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Fiscal Year</label>
-                        <input type="number" name="fiscal_year" value="{{ date('Y') }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" required>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Fiscal Year</label>
+                        <input type="number" name="fiscal_year" value="{{ date('Y') }}" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-3 px-4 text-sm font-medium" required>
                     </div>
-                    <div class="flex items-center pt-6">
-                        <input type="checkbox" name="is_budgeted" value="1" checked id="is_budgeted" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                        <label for="is_budgeted" class="ml-2 block text-sm text-gray-900">Is Budgeted (Dianggarkan)</label>
+                    <div class="flex items-center pt-8">
+                        <input type="checkbox" name="is_budgeted" value="1" checked id="is_budgeted" class="w-5 h-5 rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 cursor-pointer">
+                        <label for="is_budgeted" class="ml-3 block text-sm font-semibold text-gray-900 cursor-pointer">Is Budgeted (Dianggarkan)</label>
                     </div>
                     <div class="flex items-end">
-                        <button type="submit" class="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">Set Budget</button>
+                        <button type="submit" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 font-bold shadow-lg transition-all active:scale-95">Set Budget</button>
                     </div>
                 </form>
             </div>
@@ -55,6 +70,12 @@
             <!-- List Budgets -->
             <div class="bg-white shadow-sm sm:rounded-lg">
                 <div class="p-6 bg-white border-b border-gray-200">
+                    <div class="mb-4 flex items-start justify-between gap-4 flex-wrap">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900">Daftar Budget CAPEX</h3>
+                            <p class="text-sm text-gray-500 mt-1">Edit budget langsung dari daftar ini tanpa perlu hapus dan buat ulang.</p>
+                        </div>
+                    </div>
                     <div class="w-full max-w-full overflow-x-auto overflow-y-hidden pb-2" style="-webkit-overflow-scrolling: touch;">
                     <table class="min-w-[1200px] w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
@@ -98,6 +119,9 @@
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium min-w-[170px]">
                                         <div class="flex items-center gap-3">
+                                            <a href="{{ route('admin.capex.budgets.edit', $budget) }}" class="inline-flex items-center rounded-md bg-amber-50 px-2.5 py-1 text-amber-700 hover:bg-amber-100 font-semibold transition-colors">
+                                                Edit
+                                            </a>
                                             <button type="button" onclick="openPtaModal({{ $budget->id }}, '{{ $budget->budget_code }}')" class="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-blue-700 hover:bg-blue-100 font-semibold transition-colors">
                                                 + PTA
                                             </button>
@@ -165,6 +189,18 @@
 
 
     <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            new TomSelect('#capex_asset_id', {
+                create: false,
+                sortField: {
+                    field: "text",
+                    direction: "asc"
+                },
+                placeholder: "Cari Asset...",
+                dropdownParent: 'body'
+            });
+        });
+
         function openPtaModal(id, code) {
             document.getElementById('ptaBudgetCode').innerText = code;
             document.getElementById('ptaForm').action = `/admin/capex/budgets/${id}/pta`;

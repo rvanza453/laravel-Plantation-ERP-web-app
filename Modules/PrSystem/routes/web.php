@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\PrSystem\Http\Controllers\PrController;
 use Modules\PrSystem\Http\Controllers\ApprovalController;
 use Modules\PrSystem\Http\Controllers\InventoryImportController;
+use Modules\PrSystem\Http\Controllers\ProductRequestController;
 use Modules\PrSystem\Http\Controllers\Auth\EmailVerificationNotificationController;
 use Modules\PrSystem\Http\Controllers\Auth\PasswordController;
 
@@ -73,6 +74,9 @@ Route::middleware(['auth', 'assigned.role', 'pr.role'])->group(function () {
     // --- ADMIN ROUTES (Full Access) ---
     Route::middleware(['pr.role:Admin'])->group(function () {
         Route::resource('global-approvers', \Modules\PrSystem\Http\Controllers\Admin\GlobalApproverController::class);
+        Route::get('/admin/product-requests', [ProductRequestController::class, 'adminIndex'])->name('admin.product-requests.index');
+        Route::post('/admin/product-requests/{productRequest}/approve', [ProductRequestController::class, 'approve'])->name('admin.product-requests.approve');
+        Route::post('/admin/product-requests/{productRequest}/reject', [ProductRequestController::class, 'reject'])->name('admin.product-requests.reject');
 
         // System Reset
         Route::get('/system/reset-warehouse', [\Modules\PrSystem\Http\Controllers\Admin\SystemResetController::class, 'showResetWarehouse'])->name('system.reset-warehouse');
@@ -141,14 +145,17 @@ Route::middleware(['auth', 'assigned.role', 'pr.role'])->group(function () {
         Route::delete('/po/{po}', [\Modules\PrSystem\Http\Controllers\PoController::class, 'destroy'])->name('po.destroy');
     });
 
-    // --- GENERIC READ-ONLY VIEWS (Inventory, Products, Vendors) ---
+    // --- PRODUCT READ-ONLY VIEWS (Staff, Purchasing, Admin, Warehouse) ---
+    Route::middleware(['pr.role:Staff,Purchasing,Admin,Warehouse'])->group(function () {
+        Route::get('/products', [\Modules\PrSystem\Http\Controllers\Admin\ProductController::class, 'index'])->name('products.index');
+        Route::get('/products/{product}', [\Modules\PrSystem\Http\Controllers\Admin\ProductController::class, 'show'])->name('products.show');
+    });
+
+    // --- GENERIC READ-ONLY VIEWS (Inventory, Vendors) ---
     Route::middleware(['pr.role:Purchasing,Admin,Warehouse'])->group(function () {
         Route::get('/inventory', [\Modules\PrSystem\Http\Controllers\InventoryController::class, 'index'])->name('inventory.index');
         Route::get('/inventory/{warehouse}/history', [\Modules\PrSystem\Http\Controllers\InventoryController::class, 'history'])->name('inventory.history');
         Route::get('/inventory/{warehouse}', [\Modules\PrSystem\Http\Controllers\InventoryController::class, 'show'])->name('inventory.show');
-
-        Route::get('/products', [\Modules\PrSystem\Http\Controllers\Admin\ProductController::class, 'index'])->name('products.index');
-        Route::get('/products/{product}', [\Modules\PrSystem\Http\Controllers\Admin\ProductController::class, 'show'])->name('products.show');
 
         Route::get('/vendors', [\Modules\PrSystem\Http\Controllers\Admin\VendorController::class, 'index'])->name('vendors.index');
         Route::get('/vendors/{vendor}', [\Modules\PrSystem\Http\Controllers\Admin\VendorController::class, 'show'])->name('vendors.show');
@@ -159,6 +166,10 @@ Route::middleware(['auth', 'assigned.role', 'pr.role'])->group(function () {
     Route::post('/approvals/{approval}/approve', [ApprovalController::class, 'approve'])->name('approval.approve');
     Route::post('/approvals/{approval}/reject', [ApprovalController::class, 'reject'])->name('approval.reject');
     Route::post('/approvals/{approval}/hold', [ApprovalController::class, 'hold'])->name('approval.hold');
+
+    // --- PRODUCT REQUEST ROUTES ---
+    Route::get('/product-requests', [ProductRequestController::class, 'index'])->name('product-requests.index');
+    Route::post('/product-requests', [ProductRequestController::class, 'store'])->name('product-requests.store');
 
     Route::middleware(['pr.role:Admin'])->group(function () {
         Route::post('/approvals/{approval}/revert', [ApprovalController::class, 'revert'])->name('approval.revert');

@@ -9,9 +9,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Modules\SystemISPO\App\Models\HrExternalDataRequest;
-use Modules\SystemISPO\App\Models\HrExternalDataRequestAttachment;
-use Modules\SystemISPO\App\Models\HrExternalDataRequestShareToken;
+use Modules\SystemISPO\Models\HrExternalDataRequest;
+use Modules\SystemISPO\Models\HrExternalDataRequestAttachment;
+use Modules\SystemISPO\Models\HrExternalDataRequestShareToken;
 
 class HrExternalDataRequestController extends Controller
 {
@@ -147,6 +147,7 @@ class HrExternalDataRequestController extends Controller
             $externalRequest->updated_by = auth()->id();
             $externalRequest->save();
 
+            $this->deleteMarkedAttachments($externalRequest, $request);
             $this->storeAttachments($externalRequest, $request);
         });
 
@@ -158,9 +159,10 @@ class HrExternalDataRequestController extends Controller
     {
         $this->authorizeRoles(self::WRITE_ROLES);
 
-        abort_unless($attachment->external_data_request_id === $externalRequest->id, 404);
+        abort_unless((int) $attachment->external_data_request_id === (int) $externalRequest->id, 404);
 
-        Storage::disk('local')->delete($attachment->file_path);
+        $disk = $this->resolveAttachmentDisk($attachment->file_path);
+        Storage::disk($disk)->delete($attachment->file_path);
         $attachment->delete();
 
         return redirect()->route('hr.external-requests.edit', $externalRequest)
@@ -170,29 +172,33 @@ class HrExternalDataRequestController extends Controller
     public function previewAttachment(HrExternalDataRequest $externalRequest, HrExternalDataRequestAttachment $attachment)
     {
         $this->authorizeRoles(self::READ_ROLES);
-        abort_unless($attachment->external_data_request_id === $externalRequest->id, 404);
+        abort_unless((int) $attachment->external_data_request_id === (int) $externalRequest->id, 404);
 
-        if (!Storage::disk('local')->exists($attachment->file_path)) {
+        $disk = $this->resolveAttachmentDisk($attachment->file_path);
+
+        if (!Storage::disk($disk)->exists($attachment->file_path)) {
             abort(404, 'File tidak ditemukan di storage.');
         }
 
-        return response()->file(Storage::disk('local')->path($attachment->file_path), [
+        return Storage::disk($disk)->response($attachment->file_path, $attachment->file_name, [
             'Content-Type' => $attachment->mime_type ?: 'application/octet-stream',
             'Content-Disposition' => 'inline; filename="' . addslashes($attachment->file_name) . '"',
-        ]);
+        ], 'inline');
     }
 
     public function downloadAttachment(HrExternalDataRequest $externalRequest, HrExternalDataRequestAttachment $attachment)
     {
         $this->authorizeRoles(self::READ_ROLES);
-        abort_unless($attachment->external_data_request_id === $externalRequest->id, 404);
+        abort_unless((int) $attachment->external_data_request_id === (int) $externalRequest->id, 404);
 
-        if (!Storage::disk('local')->exists($attachment->file_path)) {
+        $disk = $this->resolveAttachmentDisk($attachment->file_path);
+
+        if (!Storage::disk($disk)->exists($attachment->file_path)) {
             abort(404, 'File tidak ditemukan di storage.');
         }
 
-        return response()->download(
-            Storage::disk('local')->path($attachment->file_path),
+        return Storage::disk($disk)->download(
+            $attachment->file_path,
             $attachment->file_name
         );
     }
@@ -235,7 +241,7 @@ class HrExternalDataRequestController extends Controller
     {
         $this->authorizeRoles(self::SHARE_TOKEN_ROLES);
 
-        abort_unless($token->external_data_request_id === $externalRequest->id, 404);
+        abort_unless((int) $token->external_data_request_id === (int) $externalRequest->id, 404);
 
         $token->update(['revoked_at' => now()]);
 
@@ -248,15 +254,19 @@ class HrExternalDataRequestController extends Controller
         return $request->validate([
             'judul_permintaan' => ['nullable', 'string'],
             'tanggal_surat_masuk' => ['nullable', 'date'],
-            'pihak_peminta' => ['nullable', Rule::in(HrExternalDataRequest::PIHAK_PEMINTA_OPTIONS)],
-            'kategori_data' => ['nullable', Rule::in(HrExternalDataRequest::KATEGORI_DATA_OPTIONS)],
+            'pihak_peminta' => ['nullable', 'string'],
+            'kategori_data' => ['nullable', 'string'],
             'deskripsi_permintaan' => ['nullable', 'string'],
             'deadline' => ['nullable', 'date'],
             'pic_user_id' => ['nullable', 'exists:users,id'],
             'status_proses' => ['nullable', Rule::in(HrExternalDataRequest::STATUS_OPTIONS)],
             'catatan_internal' => ['nullable', 'string'],
-            'incoming_documents.*' => ['nullable', 'file', 'max:15360'],
-            'outgoing_documents.*' => ['nullable', 'file', 'max:15360'],
+            'delete_attachments' => ['nullable', 'array'],
+            'delete_attachments.*' => ['nullable', 'integer'],
+            'new_attachments' => ['nullable', 'array'],
+            'new_attachments.*' => ['nullable', 'file', 'max:15360'],
+            'new_attachment_categories' => ['nullable', 'array'],
+            'new_attachment_categories.*' => ['nullable', Rule::in(HrExternalDataRequestAttachment::KATEGORI_LAMPIRAN_OPTIONS)],
         ]);
     }
 
@@ -283,18 +293,24 @@ class HrExternalDataRequestController extends Controller
 
     private function storeAttachments(HrExternalDataRequest $ticket, Request $request): void
     {
-        $this->storeAttachmentByCategory($ticket, $request, 'incoming_documents', 'incoming_document');
-        $this->storeAttachmentByCategory($ticket, $request, 'outgoing_documents', 'outgoing_document');
-    }
+        $files = $request->file('new_attachments', []);
+        $categories = $request->input('new_attachment_categories', []);
 
-    private function storeAttachmentByCategory(HrExternalDataRequest $ticket, Request $request, string $input, string $category): void
-    {
-        if (!$request->hasFile($input)) {
-            return;
-        }
+        foreach ($files as $index => $file) {
+            if (!$file) {
+                continue;
+            }
 
-        foreach ($request->file($input) as $file) {
-            $storedPath = $file->store('private/hr-external-requests/' . $ticket->id, 'local');
+            $category = $categories[$index] ?? HrExternalDataRequestAttachment::KATEGORI_LAMPIRAN_OPTIONS[0];
+            if (!in_array($category, HrExternalDataRequestAttachment::KATEGORI_LAMPIRAN_OPTIONS, true)) {
+                $category = HrExternalDataRequestAttachment::KATEGORI_LAMPIRAN_OPTIONS[0];
+            }
+
+            $storedPath = $file->store('hr-external-requests/' . $ticket->id, 'public');
+
+            if (!$storedPath || !Storage::disk('public')->exists($storedPath)) {
+                throw new \RuntimeException('Gagal menyimpan lampiran ke storage.');
+            }
 
             HrExternalDataRequestAttachment::create([
                 'external_data_request_id' => $ticket->id,
@@ -307,6 +323,34 @@ class HrExternalDataRequestController extends Controller
                 'uploaded_at' => now(),
             ]);
         }
+    }
+
+    private function deleteMarkedAttachments(HrExternalDataRequest $ticket, Request $request): void
+    {
+        $attachmentIds = collect($request->input('delete_attachments', []))
+            ->filter()
+            ->map(static fn ($value) => (int) $value)
+            ->values();
+
+        if ($attachmentIds->isEmpty()) {
+            return;
+        }
+
+        $attachments = HrExternalDataRequestAttachment::query()
+            ->where('external_data_request_id', $ticket->id)
+            ->whereIn('id', $attachmentIds)
+            ->get();
+
+        foreach ($attachments as $attachment) {
+            $disk = $this->resolveAttachmentDisk($attachment->file_path);
+            Storage::disk($disk)->delete($attachment->file_path);
+            $attachment->delete();
+        }
+    }
+
+    private function resolveAttachmentDisk(string $path): string
+    {
+        return Storage::disk('public')->exists($path) ? 'public' : 'local';
     }
 
     private function authorizeRoles(array $roles): void

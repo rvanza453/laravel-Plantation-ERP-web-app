@@ -82,6 +82,12 @@
                     <div class="text-gray-500">Budget Item</div>
                     <div class="font-medium">{{ $capex->capexBudget->budget_code }} - {{ $capex->capexBudget->capexAsset->name }}</div>
 
+                    <div class="text-gray-500">Quantity</div>
+                    <div class="font-medium">{{ number_format($capex->quantity, 0, ',', '.') }} unit</div>
+
+                    <div class="text-gray-500">Harga Satuan</div>
+                    <div class="font-medium">Rp {{ number_format($capex->price, 0, ',', '.') }}</div>
+
                     <div class="text-gray-500">Status Anggaran</div>
                     <div>
                         @if($capex->code_budget_ditanam)
@@ -95,7 +101,7 @@
                         @endif
                     </div>
 
-                    <div class="text-gray-500">Amount</div>
+                    <div class="text-gray-500">Total Amount</div>
                     <div class="font-bold text-lg">Rp {{ number_format($capex->amount, 0) }}</div>
 
                     <div class="text-gray-500">Asset Code</div>

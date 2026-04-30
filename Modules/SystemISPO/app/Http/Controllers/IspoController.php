@@ -3,11 +3,11 @@
 namespace Modules\SystemISPO\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use Modules\SystemISPO\App\Models\IspoDocument;
-use Modules\SystemISPO\App\Models\IspoDocumentEntry;
-use Modules\SystemISPO\App\Models\IspoEntryAttachment;
-use Modules\SystemISPO\App\Models\IspoEntryHistory;
-use Modules\SystemISPO\App\Models\IspoItem;
+use Modules\SystemISPO\Models\IspoDocument;
+use Modules\SystemISPO\Models\IspoDocumentEntry;
+use Modules\SystemISPO\Models\IspoEntryAttachment;
+use Modules\SystemISPO\Models\IspoEntryHistory;
+use Modules\SystemISPO\Models\IspoItem;
 use Modules\ServiceAgreementSystem\Models\Site;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;

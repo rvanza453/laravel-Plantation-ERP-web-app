@@ -30,7 +30,8 @@ spl_autoload_register(static function (string $class): void {
 
     foreach ($candidates as $path) {
         if (is_string($path) && file_exists($path)) {
-            require_once $path;
+            $resolved = realpath($path) ?: $path;
+            require_once $resolved;
 
             return;
         }

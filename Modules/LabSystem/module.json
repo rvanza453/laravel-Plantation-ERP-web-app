@@ -1,0 +1,11 @@
+{
+    "name": "LabSystem",
+    "alias": "labsystem",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\LabSystem\\Providers\\LabSystemServiceProvider"
+    ],
+    "files": []
+}

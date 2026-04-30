@@ -141,14 +141,12 @@
                 </div>
                 <div class="pf-form-group">
                     <label class="pf-label">Pihak Peminta</label>
-                    <select name="pihak_peminta" class="pf-select">
-                        <option value="">Pilih Pihak</option>
+                    <input type="text" name="pihak_peminta" value="{{ old('pihak_peminta', $ticket->pihak_peminta ?? '') }}" list="pihak-list" class="pf-input" placeholder="Ketik atau pilih pihak peminta...">
+                    <datalist id="pihak-list">
                         @foreach($pihakOptions as $option)
-                            <option value="{{ $option }}" @selected(old('pihak_peminta', $ticket->pihak_peminta ?? '') === $option)>
-                                {{ ucwords(str_replace('_', ' ', $option)) }}
-                            </option>
+                            <option value="{{ ucwords(str_replace('_', ' ', $option)) }}">
                         @endforeach
-                    </select>
+                    </datalist>
                 </div>
                 <div class="pf-form-group">
                     <label class="pf-label">Tanggal Surat Masuk</label>
@@ -156,14 +154,12 @@
                 </div>
                 <div class="pf-form-group">
                     <label class="pf-label">Kategori Data</label>
-                    <select name="kategori_data" class="pf-select">
-                        <option value="">Pilih Kategori</option>
+                    <input type="text" name="kategori_data" value="{{ old('kategori_data', $ticket->kategori_data ?? '') }}" list="kategori-list" class="pf-input" placeholder="Ketik atau pilih kategori...">
+                    <datalist id="kategori-list">
                         @foreach($kategoriOptions as $option)
-                            <option value="{{ $option }}" @selected(old('kategori_data', $ticket->kategori_data ?? '') === $option)>
-                                {{ strtoupper(str_replace('_', ' ', $option)) }}
-                            </option>
+                            <option value="{{ strtoupper(str_replace('_', ' ', $option)) }}">
                         @endforeach
-                    </select>
+                    </datalist>
                 </div>
             </div>
 

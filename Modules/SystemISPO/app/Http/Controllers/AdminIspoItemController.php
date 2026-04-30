@@ -3,7 +3,7 @@
 namespace Modules\SystemISPO\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use Modules\SystemISPO\App\Models\IspoItem;
+use Modules\SystemISPO\Models\IspoItem;
 use Illuminate\Http\Request;
 
 class AdminIspoItemController extends Controller

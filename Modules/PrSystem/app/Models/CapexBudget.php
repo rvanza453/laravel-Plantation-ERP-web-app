@@ -36,6 +36,11 @@ class CapexBudget extends Model
         return $this->belongsTo(CapexAsset::class);
     }
 
+    public function capexRequests()
+    {
+        return $this->hasMany(CapexRequest::class);
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);

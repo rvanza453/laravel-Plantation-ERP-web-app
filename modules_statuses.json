@@ -4,5 +4,6 @@
     "SystemISPO": true,
     "management": true,
     "PrSystem": true,
-    "SystemSupport": true
+    "SystemSupport": true,
+    "LabSystem": true
 }

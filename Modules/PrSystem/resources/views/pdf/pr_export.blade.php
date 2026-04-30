@@ -424,7 +424,7 @@
                 <td class="text-center">{{ $item->product->code ?? '-' }}</td>
                 <td>{{ $item->item_name }}</td>
                 <td>{{ $item->specification ?? '-' }}</td>
-                <td class="text-center">{{ $item->unit ?? '-' }}</td>
+                <td class="text-center">{{ $pr->capexRequest ? 'UNIT' : ($item->unit ?? '-') }}</td>
                 <td class="text-center">{{ $item->quantity }}</td>
                 <td class="text-center">-</td>
                 @foreach($hoApprovals as $ho)
@@ -564,7 +564,7 @@
                 <tr>
                     <td class="text-center">{{ $loop->iteration }}</td>
                     <td>{{ $item->item_name }}</td>
-                    <td class="text-center">{{ $item->quantity }} {{ $item->unit }}</td>
+                    <td class="text-center">{{ $item->quantity }} {{ $pr->capexRequest ? 'UNIT' : ($item->unit ?? '-') }}</td>
                     <td class="text-right">Rp {{ number_format($item->price_estimation, 0, ',', '.') }}</td>
                     <td style="word-break: break-all; color: blue;">
                         <a href="{{ $item->url_link }}" target="_blank" style="text-decoration: none; color: blue;">{{ $item->url_link }}</a>

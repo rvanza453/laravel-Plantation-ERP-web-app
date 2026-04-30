@@ -1,4 +1,10 @@
 <x-prsystem::app-layout>
+    @php
+        $prRole = auth()->user()?->moduleRole('pr');
+        $isPrAdmin = $prRole === 'Admin';
+        $canSuggestProduct = in_array($prRole, ['Staff', 'Purchasing'], true);
+    @endphp
+
     <div class="py-12 bg-gray-50"> {{-- Background sedikit abu agar konten pop-up --}}
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             
@@ -11,6 +17,14 @@
                 </div>
                 
                 <div class="flex items-center gap-3">
+                    @if($canSuggestProduct)
+                    <a href="{{ route('product-requests.index') }}" class="inline-flex items-center px-4 py-2 bg-sky-600 border border-transparent rounded-lg font-semibold text-sm text-white hover:bg-sky-700 focus:ring-4 focus:ring-sky-200 transition ease-in-out duration-150 shadow-sm">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                        Usul Produk
+                    </a>
+                    @endif
+
+                    @if($isPrAdmin)
                     <a href="{{ route('products.export') }}" target="_blank" class="inline-flex items-center px-4 py-2 bg-emerald-600 border border-transparent rounded-lg font-semibold text-sm text-white hover:bg-emerald-700 focus:ring-4 focus:ring-emerald-200 transition ease-in-out duration-150 shadow-sm">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                         Export CSV
@@ -20,8 +34,15 @@
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
                         Tambah Produk
                     </a>
+                    @endif
                 </div>
             </div>
+
+            @if(!$isPrAdmin)
+            <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                Anda berada pada mode baca saja untuk Master Product.
+            </div>
+            @endif
 
             <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 mb-6">
                 <form action="{{ route('products.index') }}" method="GET" class="flex flex-col md:flex-row gap-4 items-end">
@@ -65,8 +86,9 @@
                                 <th class="px-6 py-4 font-bold tracking-wider" width="25%">Availability</th>
                                 <th class="px-6 py-4 font-bold tracking-wider text-right">Price (Est)</th>
                                 <th class="px-6 py-4 font-bold tracking-wider text-center">Minimal Stock</th>
-                                {{-- Actions Header: Selalu muncul agar tabel rapi --}}
+                                @if($isPrAdmin)
                                 <th class="px-6 py-4 font-bold tracking-wider text-center">Actions</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 bg-white">
@@ -112,7 +134,7 @@
                                         </span>
                                     </td>
                                     
-                                    {{-- ACTION BUTTONS (MODERN STYLE) --}}
+                                    @if($isPrAdmin)
                                     <td class="px-6 py-4 text-center whitespace-nowrap">
                                         <div class="flex justify-center items-center gap-2 opacity-100 group-hover:opacity-100 transition-opacity">
                                             
@@ -132,19 +154,26 @@
                                             </form>
                                         </div>
                                     </td>
+                                    @endif
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-6 py-16 text-center text-gray-500 bg-white">
+                                    <td colspan="{{ $isPrAdmin ? 7 : 6 }}" class="px-6 py-16 text-center text-gray-500 bg-white">
                                         <div class="flex flex-col items-center justify-center">
                                             <div class="bg-gray-100 rounded-full p-4 mb-3">
                                                 <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
                                             </div>
                                             <h3 class="text-lg font-medium text-gray-900">Belum ada produk</h3>
                                             <p class="text-sm text-gray-500 mt-1">Coba sesuaikan filter atau tambah produk baru.</p>
+                                            @if($isPrAdmin)
                                             <a href="{{ route('products.create') }}" class="mt-4 text-indigo-600 hover:text-indigo-800 text-sm font-medium">
                                                 + Tambah Produk Sekarang
                                             </a>
+                                            @elseif($canSuggestProduct)
+                                            <a href="{{ route('product-requests.index') }}" class="mt-4 text-sky-600 hover:text-sky-800 text-sm font-medium">
+                                                + Usul Produk
+                                            </a>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>

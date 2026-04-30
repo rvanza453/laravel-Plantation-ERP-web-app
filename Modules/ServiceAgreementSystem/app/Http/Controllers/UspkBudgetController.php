@@ -5,6 +5,7 @@ namespace Modules\ServiceAgreementSystem\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Modules\ServiceAgreementSystem\Models\Department;
 use Modules\ServiceAgreementSystem\Models\Job;
 use Modules\ServiceAgreementSystem\Models\SubDepartment;
@@ -16,23 +17,44 @@ class UspkBudgetController extends Controller
     {
         $selectedYear = (int) $request->query('year', now()->year);
         $selectedDepartment = $request->query('department_id');
+        $hasSubDepartmentColumn = Schema::hasColumn('uspk_budget_activities', 'sub_department_id');
 
         $departments = Department::with('site')->orderBy('name')->get(['id', 'site_id', 'name']);
         $jobs = Job::orderBy('name')->get(['id', 'site_id', 'code', 'name']);
 
         $budgetsQuery = UspkBudgetActivity::query()
-            ->with(['subDepartment.department', 'job'])
             ->where('year', $selectedYear)
-            ->orderBy('sub_department_id')
             ->orderBy('job_id');
 
+        if ($hasSubDepartmentColumn) {
+            $budgetsQuery
+                ->with(['subDepartment.department', 'job'])
+                ->orderBy('sub_department_id');
+        } else {
+            $budgetsQuery
+                ->with(['block.subDepartment.department', 'job'])
+                ->orderBy('block_id');
+        }
+
         if (!empty($selectedDepartment)) {
-            $budgetsQuery->whereHas('subDepartment', function ($query) use ($selectedDepartment) {
-                $query->where('department_id', $selectedDepartment);
-            });
+            if ($hasSubDepartmentColumn) {
+                $budgetsQuery->whereHas('subDepartment', function ($query) use ($selectedDepartment) {
+                    $query->where('department_id', $selectedDepartment);
+                });
+            } else {
+                $budgetsQuery->whereHas('block.subDepartment', function ($query) use ($selectedDepartment) {
+                    $query->where('department_id', $selectedDepartment);
+                });
+            }
         }
 
         $budgets = $budgetsQuery->get();
+
+        if (!$hasSubDepartmentColumn) {
+            $budgets->each(function (UspkBudgetActivity $budget): void {
+                $budget->setRelation('subDepartment', $budget->block?->subDepartment);
+            });
+        }
 
         $subDepartments = SubDepartment::query()
             ->with('department:id,name')
@@ -51,6 +73,10 @@ class UspkBudgetController extends Controller
 
     public function store(Request $request)
     {
+        if (!Schema::hasColumn('uspk_budget_activities', 'sub_department_id')) {
+            return back()->withInput()->with('error', 'Struktur tabel budget USPK belum diperbarui. Jalankan migrasi terbaru terlebih dahulu.');
+        }
+
         $validated = $request->validate([
             'year' => ['required', 'integer', 'between:2000,2100'],
             'department_id' => ['required', 'exists:departments,id'],

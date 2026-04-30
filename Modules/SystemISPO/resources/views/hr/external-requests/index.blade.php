@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@section('content')
+<x-systemispo::layouts.hr-master title="Permintaan Data Eksternal">
 <!-- FontAwesome for Icons -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
@@ -148,7 +146,7 @@
                         <tr>
                             <td>
                                 <div style="display: flex; align-items: center; gap: 12px;">
-                                    <div class="pf-avatar">{{ strtoupper(substr(str_replace('_', ' ', $ticket->pihak_peminta ?? 'A')), 0, 1)) }}</div>
+                                    <div class="pf-avatar">{{ strtoupper(substr(str_replace('_', ' ', $ticket->pihak_peminta ?? 'A'), 0, 1)) }}</div>
                                     <div>
                                         <div style="font-weight: 600; color: #111;">{{ $ticket->pihak_peminta ? ucwords(str_replace('_', ' ', $ticket->pihak_peminta)) : 'Tanpa Pihak' }}</div>
                                         <div style="font-size: 11px; color: #9ca3af; font-weight: 500; font-family: monospace;">#{{ $ticket->nomor_referensi }}</div>
@@ -199,4 +197,4 @@
         @endif
     </div>
 </div>
-@endsection
+</x-systemispo::layouts.hr-master>

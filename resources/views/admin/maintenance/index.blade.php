@@ -46,6 +46,7 @@
                     'qc' => ['name' => 'QC Complaint System', 'icon' => 'fa-clipboard-check'],
                     'ispo' => ['name' => 'System ISPO', 'icon' => 'fa-leaf'],
                     'pr' => ['name' => 'Purchase Request System', 'icon' => 'fa-shopping-cart'],
+                    'lab' => ['name' => 'Lab System', 'icon' => 'fa-flask-vial'],
                 ];
             @endphp
             @foreach($modules as $key => $mod)
@@ -101,7 +102,7 @@
             <div class="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
                 <h4 class="text-base font-semibold text-indigo-900">Clear Cache</h4>
                 <p class="mt-1 text-sm text-indigo-800">Membersihkan cache Laravel, route cache, config cache, dan compiled view cache. Ini aman untuk data.</p>
-                <form action="{{ route('system.reset-warehouse.post') }}" method="POST" class="mt-4 space-y-4" onsubmit="return confirm('Bersihkan cache Laravel sekarang? Ini tidak menghapus data aplikasi.');">
+                <form action="{{ route('admin.maintenance.tools') }}" method="POST" class="mt-4 space-y-4" onsubmit="return confirm('Bersihkan cache Laravel sekarang? Ini tidak menghapus data aplikasi.');">
                     @csrf
                     <input type="hidden" name="action" value="clear_cache">
                     <div>
@@ -122,7 +123,7 @@
             <div class="rounded-xl border border-red-200 bg-red-50/60 p-4">
                 <h4 class="text-base font-semibold text-red-900">Reset Warehouse</h4>
                 <p class="mt-1 text-sm text-red-800">Fitur lama untuk reset data warehouse dan budget usage tetap tersedia di sini.</p>
-                <form action="{{ route('system.reset-warehouse.post') }}" method="POST" class="mt-4 space-y-4" onsubmit="return confirm('APAKAH ANDA YAKIN INGIN MERESET SEMUA DATA WAREHOUSE DAN BUDGET? TINDAKAN INI TIDAK BISA DIBATALKAN!');">
+                <form action="{{ route('admin.maintenance.tools') }}" method="POST" class="mt-4 space-y-4" onsubmit="return confirm('APAKAH ANDA YAKIN INGIN MERESET SEMUA DATA WAREHOUSE DAN BUDGET? TINDAKAN INI TIDAK BISA DIBATALKAN!');">
                     @csrf
                     <input type="hidden" name="action" value="reset_warehouse">
                     <div>
@@ -135,6 +136,27 @@
                         <button type="submit" class="inline-flex items-center px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition shadow-sm">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                             Eksekusi Reset Data
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="rounded-xl border border-green-200 bg-green-50/50 p-4">
+                <h4 class="text-base font-semibold text-green-900">Run Build</h4>
+                <p class="mt-1 text-sm text-green-800">Menjalankan proses build menggunakan npm untuk memperbarui aset front-end.</p>
+                <form action="{{ route('admin.maintenance.tools') }}" method="POST" class="mt-4 space-y-4" onsubmit="return confirm('Jalankan npm run build sekarang?');">
+                    @csrf
+                    <input type="hidden" name="action" value="run_build">
+                    <div>
+                        <label for="admin_password_run_build" class="block text-sm font-medium text-gray-700 mb-1">Password Verifikasi Admin</label>
+                        <input type="password" name="admin_password" id="admin_password_run_build" required
+                               class="block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm"
+                               placeholder="Masukkan password verifikasi">
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="inline-flex items-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition shadow-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            Run Build
                         </button>
                     </div>
                 </form>

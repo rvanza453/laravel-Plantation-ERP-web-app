@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -63,5 +64,10 @@ class User extends Authenticatable
     public function pendingApprovals()
     {
         return $this->hasMany(\Modules\PrSystem\Models\PrApproval::class, 'approver_id');
+    }
+
+    public function productRequests(): HasMany
+    {
+        return $this->hasMany(ProductRequest::class, 'requester_id');
     }
 }

@@ -1,6 +1,4 @@
-@extends('layouts.app')
-
-@section('content')
+<x-systemispo::layouts.hr-master title="ISPO Master Data Management">
 <div class="mb-6 flex justify-between items-center">
     <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">ISPO Master Data Management</h1>
     <button onclick="openModal('create', null, 'principle')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">
@@ -221,4 +219,4 @@
         return str.charAt(0).toUpperCase() + str.slice(1);
     }
 </script>
-@endsection
+</x-systemispo::layouts.hr-master>

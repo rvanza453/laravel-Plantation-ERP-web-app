@@ -43,11 +43,16 @@ class CapexRequest extends Model
             if (empty($model->capex_number)) {
                 // Format: XXXX/CPX/SITE/ROMAN/YEAR
                 $siteName = $model->department->site->name ?? 'HO';
+                $siteId = $model->department->site_id;
                 $romans = [1=>'I',2=>'II',3=>'III',4=>'IV',5=>'V',6=>'VI',7=>'VII',8=>'VIII',9=>'IX',10=>'X',11=>'XI',12=>'XII'];
                 $roman = $romans[date('n')] ?? 'I';
                 $year = date('Y');
                 
-                $latest = static::whereYear('created_at', $year)->latest('id')->first();
+                // Get latest capex for THIS SITE in current year
+                $latest = static::whereYear('created_at', $year)
+                    ->whereHas('department', fn($q) => $q->where('site_id', $siteId))
+                    ->latest('id')
+                    ->first();
                 $sequence = $latest ? intval(substr($latest->capex_number, 0, 4)) + 1 : 1;
                 
                 $model->capex_number = sprintf("%04d/CPX/%s/%s/%s", $sequence, $siteName, $roman, $year);

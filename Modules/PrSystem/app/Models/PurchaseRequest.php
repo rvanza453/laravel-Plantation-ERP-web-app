@@ -71,6 +71,11 @@ class PurchaseRequest extends Model
         return $this->hasOne(PurchaseOrder::class);
     }
 
+    public function capexRequest(): HasOne
+    {
+        return $this->hasOne(CapexRequest::class, 'pr_id');
+    }
+
     public function getFinalTotalAttribute()
     {
         if ($this->status !== 'Approved') {

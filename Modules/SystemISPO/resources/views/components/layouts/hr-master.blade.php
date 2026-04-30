@@ -196,7 +196,6 @@
 
         /* --- MAIN CONTENT --- */
         .hr-main {
-            margin-left: var(--sidebar-width);
             flex: 1;
             display: flex;
             flex-direction: column;
@@ -365,71 +364,14 @@
 <body>
     @include('components.impersonation-banner')
 
-    {{-- SIDEBAR --}}
-    <aside class="hr-sidebar" id="mainSidebar">
-        <div class="sidebar-brand">
-            <div class="brand-icon">HR</div>
-            <div class="brand-text">Human Resource</div>
-        </div>
-
-        <nav class="nav-content">
-            <div class="nav-section">
-                <div class="nav-label">Core System</div>
-                <a href="{{ route('hr.dashboard') }}" class="nav-item {{ request()->routeIs('hr.dashboard') ? 'active' : '' }}">
-                    <i class="fas fa-grid-2"></i> Dashboard
-                </a>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-label">External Task</div>
-                <a href="{{ route('hr.external-requests.index') }}" class="nav-item {{ request()->routeIs('hr.external-requests.*') ? 'active' : '' }}">
-                    <i class="fas fa-file-invoice"></i> Permintaan Data
-                </a>
-            </div>
-
-            <div class="nav-section">
-                <div class="nav-label">Compliance</div>
-                <a href="{{ route('ispo.index') }}" class="nav-item {{ request()->routeIs('ispo.*') ? 'active' : '' }}">
-                    <i class="fas fa-shield-check"></i> Audit ISPO
-                </a>
-                <a href="#" class="nav-item">
-                    <i class="fas fa-folders"></i> Dokumen Kebijakan
-                </a>
-            </div>
-        </nav>
-
-        <div class="sidebar-user">
-            <div class="user-pill">
-                <div class="user-avatar">{{ substr(auth()->user()->name, 0, 1) }}</div>
-                <div style="flex: 1; overflow: hidden;">
-                    <div style="font-size: 13px; font-weight: 800; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ auth()->user()->name }}</div>
-                    <div style="font-size: 11px; color: #94a3b8; font-weight: 600; letter-spacing: 0.02em;">HR Administrator</div>
-                </div>
-                <form action="{{ route('logout') }}" method="POST" class="m-0">
-                    @csrf
-                    <button type="submit" style="background: transparent; border: none; cursor: pointer; color: #64748b; padding: 6px; transition: color 0.2s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#64748b'" title="Logout">
-                        <i class="fas fa-power-off text-lg"></i>
-                    </button>
-                </form>
-            </div>
-        </div>
-    </aside>
-
     <div class="hr-main">
         <header class="hr-header">
-            <div class="flex items-center gap-6">
-                <button class="action-btn lg:hidden" onclick="toggleSidebar()">
-                    <i class="fas fa-bars"></i>
-                </button>
-                
-                {{-- Modern Breadcrumb --}}
-                <div class="hr-breadcrumb hidden md:flex">
-                    <a href="{{ route('modules.index') }}"><i class="fas fa-home opacity-70"></i></a>
-                    <span class="separator"><i class="fas fa-chevron-right"></i></span>
-                    <a href="{{ route('hr.dashboard') }}">HR Unit</a>
-                    <span class="separator"><i class="fas fa-chevron-right"></i></span>
-                    <span class="current">{{ $title ?? 'Dashboard' }}</span>
-                </div>
+            <div class="hr-breadcrumb hidden md:flex">
+                <a href="{{ route('modules.index') }}"><i class="fas fa-home opacity-70"></i></a>
+                <span class="separator"><i class="fas fa-chevron-right"></i></span>
+                <a href="{{ route('hr.dashboard') }}">HR Unit</a>
+                <span class="separator"><i class="fas fa-chevron-right"></i></span>
+                <span class="current">{{ $title ?? 'Dashboard' }}</span>
             </div>
 
             <div class="header-actions">
@@ -457,32 +399,6 @@
         </main>
     </div>
 
-    <script>
-        function toggleSidebar() {
-            const sidebar = document.getElementById('mainSidebar');
-            sidebar.classList.toggle('mobile-open');
-            
-            // Add overlay backdrop for mobile if not exists
-            let backdrop = document.getElementById('sidebarBackdrop');
-            if(sidebar.classList.contains('mobile-open')) {
-                if(!backdrop) {
-                    backdrop = document.createElement('div');
-                    backdrop.id = 'sidebarBackdrop';
-                    backdrop.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15, 23, 42, 0.4); backdrop-filter:blur(4px); z-index:999; opacity:0; transition:opacity 0.3s;';
-                    backdrop.onclick = toggleSidebar;
-                    document.body.appendChild(backdrop);
-                    // Trigger reflow
-                    void backdrop.offsetWidth;
-                    backdrop.style.opacity = '1';
-                }
-            } else {
-                if(backdrop) {
-                    backdrop.style.opacity = '0';
-                    setTimeout(() => backdrop.remove(), 300);
-                }
-            }
-        }
-    </script>
     @stack('scripts')
 </body>
 </html>

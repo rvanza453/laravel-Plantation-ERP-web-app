@@ -38,7 +38,9 @@
             $prRole = auth()->user()?->moduleRole('pr');
             $canSeePo = in_array($prRole, ['Purchasing', 'Finance', 'Admin'], true);
             $canSeeInventory = in_array($prRole, ['Purchasing', 'Admin', 'Warehouse'], true);
+            $canSeeProductMaster = in_array($prRole, ['Staff', 'Purchasing', 'Admin', 'Warehouse'], true);
             $canSeeApproval = in_array($prRole, ['Approver', 'Admin'], true);
+            $canSeeProductRequest = !in_array($prRole, ['Admin', 'Approver'], true);
             $isPrAdmin = $prRole === 'Admin';
             $canSeeBudgetMonitoring = in_array($prRole, ['Approver', 'Admin', 'Finance'], true);
             $isManagementArea = request()->routeIs('management.*')
@@ -127,6 +129,13 @@
                         <span class="text-sm font-medium">Daftar PR</span>
                     </x-prsystem::nav-link>
 
+                    @if($canSeeProductRequest)
+                    <x-prsystem::nav-link :href="route('product-requests.index')" :active="request()->routeIs('product-requests.*')" class="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-white hover:shadow-sm transition-all duration-200">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6m7 1a2 2 0 00-2-2H6a2 2 0 00-2 2m14 0a2 2 0 01-2 2H6a2 2 0 01-2-2m14 0V7a2 2 0 00-2-2M6 19V7a2 2 0 012-2h8a2 2 0 012 2v0"/></svg>
+                        <span class="text-sm font-medium">Usul Produk</span>
+                    </x-prsystem::nav-link>
+                    @endif
+
                     <x-prsystem::nav-link :href="route('pr.index', ['status' => 'expired'])" :active="request('status') === 'expired'" class="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 hover:shadow-sm transition-all duration-200">
                          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
                         <span class="text-sm font-medium">PR Expired</span>
@@ -158,7 +167,7 @@
                     </x-prsystem::nav-link>
                     @endif
 
-                    @if($isPrAdmin || $canSeeInventory)
+                    @if($isPrAdmin || $canSeeInventory || $canSeeProductMaster)
                     <!-- Section: Master Data -->
                     <div class="px-4 py-2 mt-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                         Data Master
@@ -177,11 +186,14 @@
                     </x-prsystem::nav-link>
                     @endif
 
-                    @if($canSeeInventory)
+                    @if($canSeeProductMaster)
                     <x-prsystem::nav-link :href="route('products.index')" :active="request()->routeIs('products.*')" class="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-white hover:shadow-sm transition-all duration-200">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                         <span class="text-sm font-medium">Produk</span>
                     </x-prsystem::nav-link>
+                    @endif
+
+                    @if($canSeeInventory)
                     <x-prsystem::nav-link :href="route('vendors.index')" :active="request()->routeIs('vendors.*')" class="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-white hover:shadow-sm transition-all duration-200">
                          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                         <span class="text-sm font-medium">Suppliers</span>
@@ -226,6 +238,10 @@
                     <x-prsystem::nav-link :href="route('global-approvers.index')" :active="request()->routeIs('global-approvers.*')" class="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-white hover:shadow-sm transition-all duration-200">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
                         <span class="text-sm font-medium">Config Approval HO</span>
+                    </x-prsystem::nav-link>
+                    <x-prsystem::nav-link :href="route('admin.product-requests.index')" :active="request()->routeIs('admin.product-requests.*')" class="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-white hover:shadow-sm transition-all duration-200">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6m7 1a2 2 0 00-2-2H6a2 2 0 00-2 2m14 0a2 2 0 01-2 2H6a2 2 0 01-2-2m14 0V7a2 2 0 00-2-2M6 19V7a2 2 0 012-2h8a2 2 0 012 2v0"/></svg>
+                        <span class="text-sm font-medium">Product Requests</span>
                     </x-prsystem::nav-link>
 
                     <!-- Section: Capex Admin -->
@@ -323,6 +339,12 @@
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                     <span class="text-xs mt-1 font-medium">PR</span>
                 </a>
+                @if($canSeeProductRequest)
+                <a href="{{ route('product-requests.index') }}" class="flex flex-col items-center justify-center flex-1 py-2 {{ request()->routeIs('product-requests.*') ? 'text-indigo-600' : 'text-gray-600' }}">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6m7 1a2 2 0 00-2-2H6a2 2 0 00-2 2m14 0a2 2 0 01-2 2H6a2 2 0 01-2-2m14 0V7a2 2 0 00-2-2M6 19V7a2 2 0 012-2h8a2 2 0 012 2v0"/></svg>
+                    <span class="text-xs mt-1 font-medium">Usul</span>
+                </a>
+                @endif
                 @if($canSeePo)
                     <a href="{{ route('po.index') }}" class="flex flex-col items-center justify-center flex-1 py-2 {{ request()->routeIs('po.*') ? 'text-indigo-600' : 'text-gray-600' }}">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
@@ -416,10 +438,23 @@
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                             <span>Inventory</span>
                         </a>
+                        @endif
+
+                        @if($canSeeProductMaster)
                         <a href="{{ route('products.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                             <span>Produk</span>
                         </a>
+                        @endif
+
+                        @if($isPrAdmin)
+                        <a href="{{ route('admin.product-requests.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-3-3v6m7 1a2 2 0 00-2-2H6a2 2 0 00-2 2m14 0a2 2 0 01-2 2H6a2 2 0 01-2-2m14 0V7a2 2 0 00-2-2M6 19V7a2 2 0 012-2h8a2 2 0 012 2v0"/></svg>
+                            <span>Product Requests</span>
+                        </a>
+                        @endif
+
+                        @if($canSeeInventory)
                         <a href="{{ route('vendors.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/></svg>
                             <span>Suppliers</span>
@@ -513,6 +548,7 @@
         }
         </script>
         
+        @if($canSeePo)
         <!-- PO Cart Floating Button (Embedded directly due to component loading issue) -->
         <div x-data="poCart()" x-init="init()" class="relative z-[9999]">
             <!-- Floating Action Button -->
@@ -696,5 +732,6 @@
             }
         }
         </script>
+        @endif
     </body>
 </html>

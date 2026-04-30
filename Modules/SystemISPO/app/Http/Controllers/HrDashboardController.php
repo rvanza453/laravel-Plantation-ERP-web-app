@@ -3,7 +3,7 @@
 namespace Modules\SystemISPO\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use Modules\SystemISPO\App\Models\HrExternalDataRequest;
+use Modules\SystemISPO\Models\HrExternalDataRequest;
 
 class HrDashboardController extends Controller
 {
@@ -12,7 +12,7 @@ class HrDashboardController extends Controller
         $stats = [
             'total' => HrExternalDataRequest::count(),
             'pending' => HrExternalDataRequest::where('status_proses', 'menunggu')->count(),
-            'processing' => HrExternalDataRequest::where('status_proses', 'diproses')->count(),
+            'processing' => HrExternalDataRequest::whereIn('status_proses', ['sedang_diproses', 'menunggu_persetujuan_manajer'])->count(),
             'finished' => HrExternalDataRequest::where('status_proses', 'selesai')->count(),
         ];
 

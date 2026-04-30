@@ -153,7 +153,7 @@
                         <i class="fas fa-info-circle"></i>
                     </div>
                     <div class="text-[11px] font-bold text-slate-500 leading-relaxed uppercase tracking-tighter">
-                        Audit Cycle mengikuti standard P&K ISPO terbaru versi 2020.
+                        Audit Cycle mengikuti standard P&K ISPO.
                     </div>
                 </div>
             </div>
